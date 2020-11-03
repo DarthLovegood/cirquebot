@@ -16,6 +16,7 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 async def on_ready():
     print(f'Successfully logged in as: {bot.user}')
     bot.load_extension('cogs.welcome')
+    bot.load_extension('cogs.nicknames')
 
 
 if __name__ == '__main__':
