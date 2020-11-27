@@ -58,7 +58,7 @@ class Nicknames(commands.Cog):
 
     async def insert_or_update_nickname(self, ctx, args):
         user_str = args[0]
-        member = self.get_member(ctx, user_str)
+        member = Nicknames.get_member_from_guild(ctx, user_str)
         nickname = " ".join(args[1:])
         if member:
             with sqlite3.connect(self.db) as connection:
@@ -73,11 +73,11 @@ class Nicknames(commands.Cog):
                 c.close()
             await ctx.send(embed=create_basic_embed(embed_msg, EMOJI_SUCCESS))
         else:
-            await self.on_member_not_found(ctx, user_str)
+            await Nicknames.on_member_not_found(ctx, user_str)
 
     async def delete_nickname(self, ctx, args):
         user_str = " ".join(args)
-        member = self.get_member(ctx, user_str)
+        member = Nicknames.get_member_from_guild(ctx, user_str)
         if member:
             with sqlite3.connect(self.db) as connection:
                 c = connection.cursor()
@@ -93,7 +93,7 @@ class Nicknames(commands.Cog):
                 c.close()
             await ctx.send(embed=create_basic_embed(embed_msg, embed_emoji))
         else:
-            await self.on_member_not_found(ctx, user_str)
+            await Nicknames.on_member_not_found(ctx, user_str)
 
     async def list_nicknames(self, ctx):
         table_rows = []
@@ -113,11 +113,29 @@ class Nicknames(commands.Cog):
         await ctx.send(embed=create_basic_embed(f'Could not find member named **{user_str}**.', EMOJI_ERROR))
 
     @staticmethod
-    def get_member(ctx, user_str):
-        if user_str.isnumeric():
-            return ctx.guild.get_member(int(user_str))
+    def get_member_from_guild(ctx, identifier):
+        if isinstance(identifier, int):
+            return ctx.guild.get_member(identifier)
+        elif identifier.isnumeric():
+            return ctx.guild.get_member(int(identifier))
         else:
-            return ctx.guild.get_member_named(user_str)
+            return ctx.guild.get_member_named(identifier)
+
+    def get_member_from_db(self, ctx, sql, arg):
+        with sqlite3.connect(self.db) as connection:
+            c = connection.cursor()
+            c.execute(sql, (arg,))
+            results = c.fetchall()
+            c.close()
+        if results and len(results) == 1:
+            return Nicknames.get_member_from_guild(ctx, results[0][0])
+
+    def get_member_by_nickname(self, ctx, nickname):
+        return self.get_member_from_db(ctx, 'SELECT * FROM nicknames WHERE nickname=?', nickname)
+
+    # TODO: Is this necessary?
+    def get_member_by_id(self, ctx, member_id):
+        return self.get_member_from_db(ctx, 'SELECT * FROM nicknames WHERE id=?', member_id)
 
 
 def setup(bot):

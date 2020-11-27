@@ -1,6 +1,8 @@
 import discord
 
 COLOR_DEFAULT = 0x9B59B6
+COLOR_PUB = 0x2176CD
+COLOR_IMP = 0xDE3E3A
 
 EMOJI_ERROR = '❌'
 EMOJI_SUCCESS = '✅'
@@ -60,3 +62,9 @@ def create_table_embed(title: str, headers: tuple, rows: list):
         embed.add_field(name=headers[i], value=field_values[i])
 
     return embed
+
+
+def create_event_embed(event: dict):
+    # TODO: Implement!
+    print(str(event))
+    pass
