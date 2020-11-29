@@ -18,6 +18,7 @@ async def on_ready():
     bot.load_extension('cogs.welcome')
     bot.load_extension('cogs.nicknames')
     bot.load_extension('cogs.events')
+    bot.load_extension('cogs.conquerors')
 
 
 if __name__ == '__main__':

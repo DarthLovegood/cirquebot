@@ -7,6 +7,7 @@ COLOR_IMP = 0xDE3E3A
 EMOJI_ERROR = '❌'
 EMOJI_SUCCESS = '✅'
 EMOJI_WARNING = '❔'
+EMOJI_INFO = 'ℹ'
 
 FORMAT_EMOJI_TEXT = '{0} \u200B \u200B {1}'  # args: emoji, text
 FORMAT_HELP_TITLE = 'CirqueBot Help: \u200B \u200B `{0}`'  # args: command
@@ -55,7 +56,7 @@ def create_table_embed(title: str, headers: tuple, rows: list):
             print(f'Invalid number of items in row: expected {num_fields} but found {len(row)}.')
             return None
         for i in range(num_fields):
-            emoji = "🔹" if r % 2 == 0 else "🔸"
+            emoji = "🟪" if r % 2 == 0 else "⬜"
             field_values[i] += f'{emoji} {row[i]}\n'
 
     for i in range(num_fields):
