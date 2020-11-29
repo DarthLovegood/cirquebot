@@ -227,7 +227,7 @@ class Clownquest(commands.Cog):
                     embed_text = 'Saved data for members ' \
                                  f'**{rows[0][0]} ({rows[0][1]})** to **{rows[-1][0]} ({rows[-1][1]})**.'
                     async with aiofiles.open(FILENAME_SESSION, 'a') as output_file:
-                        output_text = '\n'.join(re.sub('\', \'?', ',', str(row)[2:-1]) for row in rows) + '\n'
+                        output_text = '\n'.join(re.sub('[\'"], [\'"]?', ',', str(row)[2:-1]) for row in rows) + '\n'
                         await output_file.write(output_text)
                 else:
                     embed_text = 'Scrapping OCR data for above image.'
