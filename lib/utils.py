@@ -5,7 +5,7 @@ from json import loads
 import aiohttp
 from discord import NotFound
 
-from embeds import EMOJI_ERROR, create_basic_embed
+from lib.embeds import EMOJI_ERROR, create_basic_embed
 
 
 async def fetch_dict_from_message(ctx, message_link, required_keys=[], enforce_numeric_values=False):

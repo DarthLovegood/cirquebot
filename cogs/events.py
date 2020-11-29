@@ -2,8 +2,8 @@ import sqlite3
 
 from discord.ext import commands
 
-from embeds import *
-from event import Event
+from lib.embeds import *
+from lib.event import Event
 
 FORMAT_JSON = '```json\n{0}```'
 

@@ -7,18 +7,19 @@ from json import dumps, loads
 import aiofiles.os
 from discord.ext import commands
 
-import conquest_ocr
-import utils
-from embeds import *
-
-TIMEOUT_SECONDS = 60
-
-SESSION_FILENAME = 'session.csv'
+from lib import ocr, utils
+from lib.embeds import *
 
 EMOJI_SESSION_NEXT = '▶'
 EMOJI_SESSION_COMPLETED = '🥳'
 EMOJI_SESSION_CANCELED = '💩'
 
+FILENAME_IMAGE = 'image_with_bounds.png'
+FILENAME_SESSION = 'clownquest_session.csv'
+
+TABLE_HEADERS = ('🧑 Character Name', '👪 Legacy Name', '🏆 Conquest Points')
+
+TEXT_FORMAT_BOUNDS = 'Current bounds for **{0}**:\n```json\n{1}\n```'  # args: user name, json text
 TEXT_ONE_IMAGE = 'Please attach/embed exactly one image.'
 TEXT_SESSION_MENU = '\n\nPlease react with one of the following emoji: ' \
                     f'\n \u200B \u200B \u200B {EMOJI_SESSION_NEXT} = Process another image' \
@@ -26,16 +27,15 @@ TEXT_SESSION_MENU = '\n\nPlease react with one of the following emoji: ' \
                     f'\n \u200B \u200B \u200B {EMOJI_SESSION_CANCELED} = Scrap the current session and discard all data'
 TEXT_SESSION_TIMEOUT = 'You were too slow! \u200B \u200B 🦥 \u200B Canceled the OCR session and discarded its data.'
 
-TABLE_HEADERS = ('🧑 Character Name', '👪 Legacy Name', '🏆 Conquest Points')
-FORMAT_BOUNDS_MESSAGE = 'Current bounds for **{0}**:\n```json\n{1}\n```'  # args: user name, json text
+TIMEOUT_SECONDS = 60
 
 
-class Conquerors(commands.Cog):
-    db = 'data/conquerors.db'
+class Clownquest(commands.Cog):
+    db = 'data/clownquest.db'
     help = {
-        KEY_TITLE: 'Conquerors',
+        KEY_TITLE: 'Clownquest',
         KEY_DESCRIPTION: 'Extracts conquest data from screenshots of the guild member list.',
-        KEY_COMMAND: '!cb conquerors',
+        KEY_COMMAND: '!cb clownquest',
         KEY_SUBCOMMANDS: [
             {
                 KEY_EMOJI: '🔍',
@@ -76,10 +76,10 @@ class Conquerors(commands.Cog):
             connection.commit()
             c.close()
 
-    @commands.command(aliases=['conqueror', 'conquest', 'conq', 'cq'])
-    async def conquerors(self, ctx, command: str = None, *args):
+    @commands.command(aliases=['conquest', 'conq', 'cq'])
+    async def clownquest(self, ctx, command: str = None, *args):
         message = ctx.message
-        if self.bot.get_cog('ConqSession'):
+        if self.bot.get_cog('CQSession'):
             return  # Message will be handled by the active ConqSession.
         elif command == 'demo' and len(args) <= 1:
             image_data = await utils.get_attachment_data(message) if not args else await utils.get_embed_data(message)
@@ -96,7 +96,7 @@ class Conquerors(commands.Cog):
 
     @staticmethod
     def get_bounds_for_user(db, user_id):
-        bounds = conquest_ocr.DEFAULT_BOUNDS
+        bounds = ocr.DEFAULT_BOUNDS
         with sqlite3.connect(db) as connection:
             c = connection.cursor()
             c.execute('SELECT * FROM bounds WHERE id=?', (user_id,))
@@ -109,8 +109,8 @@ class Conquerors(commands.Cog):
     async def demo(self, ctx, image_data):
         if image_data:
             async with ctx.message.channel.typing():
-                bounds = Conquerors.get_bounds_for_user(self.db, ctx.author.id)
-                rows = conquest_ocr.process_screenshot(io.BytesIO(image_data), bounds)
+                bounds = Clownquest.get_bounds_for_user(self.db, ctx.author.id)
+                rows = ocr.process_screenshot(io.BytesIO(image_data), bounds)
             await ctx.send(embed=create_table_embed('', TABLE_HEADERS, rows))
         else:
             await ctx.send(embed=create_basic_embed(TEXT_ONE_IMAGE, EMOJI_ERROR))
@@ -118,19 +118,18 @@ class Conquerors(commands.Cog):
     async def show_bounds(self, ctx, image_data):
         if image_data:
             async with ctx.message.channel.typing():
-                output_filename = 'image_with_bounds.png'
-                bounds = Conquerors.get_bounds_for_user(self.db, ctx.author.id)
-                conquest_ocr.draw_bounds(io.BytesIO(image_data), output_filename, bounds)
-            embed_text = FORMAT_BOUNDS_MESSAGE.format(ctx.author.display_name, dumps(bounds, indent=2))
-            await ctx.send(file=discord.File(output_filename))
+                bounds = Clownquest.get_bounds_for_user(self.db, ctx.author.id)
+                ocr.draw_bounds(io.BytesIO(image_data), FILENAME_IMAGE, bounds)
+            embed_text = TEXT_FORMAT_BOUNDS.format(ctx.author.display_name, dumps(bounds, indent=2))
+            await ctx.send(file=discord.File(FILENAME_IMAGE))
             await ctx.send(embed=create_basic_embed(embed_text, EMOJI_INFO))
-            await aiofiles.os.remove(output_filename)
+            await aiofiles.os.remove(FILENAME_IMAGE)
         else:
             await ctx.send(embed=create_basic_embed(TEXT_ONE_IMAGE, EMOJI_ERROR))
 
     async def set_bounds(self, ctx, message_link):
         bounds = await utils.fetch_dict_from_message(
-            ctx, message_link, required_keys=conquest_ocr.DEFAULT_BOUNDS.keys(), enforce_numeric_values=True)
+            ctx, message_link, required_keys=ocr.DEFAULT_BOUNDS.keys(), enforce_numeric_values=True)
         if bounds:
             with sqlite3.connect(self.db) as connection:
                 c = connection.cursor()
@@ -145,11 +144,11 @@ class Conquerors(commands.Cog):
             await ctx.send(embed=create_basic_embed(embed_msg, EMOJI_SUCCESS))
 
     async def start(self, ctx):
-        session_cog = Conquerors.ConqSession(self.bot, self.db, ctx)
+        session_cog = Clownquest.CQSession(self.bot, self.db, ctx)
         self.bot.add_cog(session_cog)
         await session_cog.prompt_for_message(is_first_message=True)
 
-    class ConqSession(commands.Cog):
+    class CQSession(commands.Cog):
         def __init__(self, bot, db, ctx):
             self.bot = bot
             self.db = db
@@ -217,8 +216,8 @@ class Conquerors(commands.Cog):
                 return
 
             async with message.channel.typing():
-                bounds = Conquerors.get_bounds_for_user(self.db, message.author.id)
-                rows = conquest_ocr.process_screenshot(io.BytesIO(image_data), bounds)
+                bounds = Clownquest.get_bounds_for_user(self.db, message.author.id)
+                rows = ocr.process_screenshot(io.BytesIO(image_data), bounds)
 
             title = f'React with {EMOJI_SUCCESS} to accept this result or {EMOJI_ERROR} to reject it.'
             embed = create_table_embed(title, TABLE_HEADERS, rows)
@@ -227,7 +226,7 @@ class Conquerors(commands.Cog):
                 if emoji == EMOJI_SUCCESS:
                     embed_text = 'Saved data for members ' \
                                  f'**{rows[0][0]} ({rows[0][1]})** to **{rows[-1][0]} ({rows[-1][1]})**.'
-                    async with aiofiles.open(SESSION_FILENAME, 'a') as output_file:
+                    async with aiofiles.open(FILENAME_SESSION, 'a') as output_file:
                         output_text = '\n'.join(re.sub('\', \'?', ',', str(row)[2:-1]) for row in rows) + '\n'
                         await output_file.write(output_text)
                 else:
@@ -246,7 +245,7 @@ class Conquerors(commands.Cog):
 
             if emoji == EMOJI_SESSION_COMPLETED:
                 embed_text = 'Successfully completed the OCR session! Here\'s a file containing all the data.'
-                file = discord.File(SESSION_FILENAME)
+                file = discord.File(FILENAME_SESSION)
             else:
                 embed_text = 'Canceled the OCR session. All of its data has been discarded.'
                 file = None
@@ -255,15 +254,15 @@ class Conquerors(commands.Cog):
             await self.finish(create_basic_embed(embed_text, emoji), file)
 
         async def finish(self, embed, file=None):
-            await aiofiles.os.remove(SESSION_FILENAME)
+            await aiofiles.os.remove(FILENAME_SESSION)
             await self.channel.delete_messages(self.messages_to_delete)
             self.messages_to_delete.clear()
             self.expected_emoji.clear()
-            self.bot.remove_cog('ConqSession')
+            self.bot.remove_cog('CQSession')
             await self.channel.send(embed=embed)
             if file:
                 await self.channel.send(file=file)
 
 
 def setup(bot):
-    bot.add_cog(Conquerors(bot))
+    bot.add_cog(Clownquest(bot))

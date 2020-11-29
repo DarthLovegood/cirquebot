@@ -2,7 +2,7 @@ import sqlite3
 
 from discord.ext import commands
 
-from embeds import *
+from lib.embeds import *
 
 
 class Nicknames(commands.Cog):
