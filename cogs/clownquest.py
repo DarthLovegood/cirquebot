@@ -21,6 +21,7 @@ TABLE_HEADERS = ('🧑 Character Name', '👪 Legacy Name', '🏆 Conquest Point
 
 TEXT_FORMAT_BOUNDS = 'Current bounds for **{0}**:\n```json\n{1}\n```'  # args: user name, json text
 TEXT_ONE_IMAGE = 'Please attach/embed exactly one image.'
+TEXT_SESSION_CONFIRMATION = f'React with {EMOJI_SUCCESS} to accept this result or {EMOJI_ERROR} to reject it.'
 TEXT_SESSION_MENU = '\n\nPlease react with one of the following emoji: ' \
                     f'\n \u200B \u200B \u200B {EMOJI_SESSION_NEXT} = Process another image' \
                     f'\n \u200B \u200B \u200B {EMOJI_SESSION_COMPLETED} = Finish the session and export all data' \
@@ -80,7 +81,7 @@ class Clownquest(commands.Cog):
     async def clownquest(self, ctx, command: str = None, *args):
         message = ctx.message
         if self.bot.get_cog('CQSession'):
-            return  # Message will be handled by the active ConqSession.
+            return  # Message will be handled by the active CQSession.
         elif command == 'demo' and len(args) <= 1:
             image_data = await utils.get_attachment_data(message) if not args else await utils.get_embed_data(message)
             await self.demo(ctx, image_data)
@@ -218,9 +219,7 @@ class Clownquest(commands.Cog):
             async with message.channel.typing():
                 bounds = Clownquest.get_bounds_for_user(self.db, message.author.id)
                 rows = ocr.process_screenshot(io.BytesIO(image_data), bounds)
-
-            title = f'React with {EMOJI_SUCCESS} to accept this result or {EMOJI_ERROR} to reject it.'
-            embed = create_table_embed(title, TABLE_HEADERS, rows)
+                embed = create_table_embed(TEXT_SESSION_CONFIRMATION, TABLE_HEADERS, rows)
 
             async def confirmation_callback(emoji, prompt_message):
                 if emoji == EMOJI_SUCCESS:
@@ -254,14 +253,17 @@ class Clownquest(commands.Cog):
             await self.finish(create_basic_embed(embed_text, emoji), file)
 
         async def finish(self, embed, file=None):
-            await aiofiles.os.remove(FILENAME_SESSION)
             await self.channel.delete_messages(self.messages_to_delete)
+            await self.channel.send(embed=embed)
+
             self.messages_to_delete.clear()
             self.expected_emoji.clear()
             self.bot.remove_cog('CQSession')
-            await self.channel.send(embed=embed)
+
             if file:
                 await self.channel.send(file=file)
+                file.close()
+                await aiofiles.os.remove(FILENAME_SESSION)
 
 
 def setup(bot):
