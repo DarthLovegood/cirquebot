@@ -3,17 +3,44 @@ import numbers
 from json import loads
 
 import aiohttp
-from discord import NotFound
+from discord import NotFound, Forbidden
 
 from lib.embeds import EMOJI_ERROR, create_basic_embed
 
+TEXT_INVALID_MESSAGE_LINK = 'Please make sure the message link is valid.'
+
+
+def extract_channel_id(message_link):
+    return int(message_link.split('/')[-2])
+
+
+def extract_message_id(message_link):
+    return int(message_link.split('/')[-1])
+
+
+def get_channel(ctx, channel_str):
+    return ctx.guild.get_channel(int(channel_str[2:-1]))
+
+
+async def fetch_message(ctx, message_link):
+    try:
+        channel_id = extract_channel_id(message_link)
+        channel = ctx.guild.get_channel(channel_id)
+
+        if channel:
+            return await channel.fetch_message(extract_message_id(message_link))
+        else:
+            raise NotFound(f'Channel {channel_id} not found.')
+    except (IndexError, ValueError, Forbidden, NotFound):
+        return None
+
 
 async def fetch_dict_from_message(ctx, message_link, required_keys=[], enforce_numeric_values=False):
-    try:
-        message = await ctx.fetch_message(int(message_link.split("/")[-1]))
-    except (ValueError, NotFound):
-        await ctx.send(embed=create_basic_embed('Please make sure the message link is valid.', EMOJI_ERROR))
-        return None
+    message = await fetch_message(ctx, message_link)
+
+    if not message:
+        await ctx.send(embed=create_basic_embed(TEXT_INVALID_MESSAGE_LINK, EMOJI_ERROR))
+        return
 
     try:
         content = message.content
