@@ -9,8 +9,9 @@ from lib.embeds import create_basic_embed
 
 FILENAME_BONK = 'assets/bonk.png'
 FILENAME_MASK = 'assets/mask.png'
+FILENAME_SUNDER = 'assets/sunder.png'
 
-REGEX_BONK = re.compile(r'^\s*/bonk(\s*<@!?[0-9]*>)*\s*$')
+REGEX_BONK = re.compile(r'^\s*/(sunder)?bonk(\s*<@!?[0-9]*>)*\s*$')
 
 
 class EasterEggs(commands.Cog):
@@ -22,15 +23,16 @@ class EasterEggs(commands.Cog):
         if message.author.id == self.bot.user.id:
             return
         elif REGEX_BONK.match(message.content):
+            sunder = 'sunder' in message.content
             if len(message.mentions) == 0:
-                await EasterEggs.bonk(message.channel, message.author)
+                await EasterEggs.bonk(message.channel, message.author, sunder=sunder)
             elif len(message.mentions) == 1:
-                await EasterEggs.bonk(message.channel, message.author, message.mentions[0])
+                await EasterEggs.bonk(message.channel, message.author, message.mentions[0], sunder=sunder)
             else:
                 await message.channel.send(embed=create_basic_embed('I can only bonk one person at a time!', '😵'))
 
     @staticmethod
-    async def bonk(channel, bonker, bonkee=None):
+    async def bonk(channel, bonker, bonkee=None, sunder=False):
         async with channel.typing():
             bonk_image = Image.open(FILENAME_BONK)
 
@@ -38,7 +40,7 @@ class EasterEggs(commands.Cog):
             bonkee_asset = bonkee and bonkee.avatar_url_as(format='png', size=128)
 
             if bonker_asset:
-                bonker_image = Image.open(BytesIO(await bonker_asset.read()))
+                bonker_image = Image.open(FILENAME_SUNDER) if sunder else Image.open(BytesIO(await bonker_asset.read()))
                 bonk_image = EasterEggs.process_image(
                     bonker_image, new_size=(75, 75), apply_mask=True, bg_image=bonk_image, position=(42, 30))
 
