@@ -16,6 +16,7 @@ bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
 async def on_ready():
     print(f'Successfully logged in as: {bot.user}')
     bot.load_extension('cogs.clownquest')
+    bot.load_extension('cogs.easter_eggs')
     # bot.load_extension('cogs.events')
     bot.load_extension('cogs.nicknames')
     bot.load_extension('cogs.rewrite')
