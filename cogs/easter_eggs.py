@@ -5,13 +5,15 @@ from PIL import Image
 from discord import File
 from discord.ext import commands
 
-from lib.embeds import create_basic_embed
-
 FILENAME_BONK = 'assets/bonk.png'
 FILENAME_MASK = 'assets/mask.png'
 FILENAME_SUNDER = 'assets/sunder.png'
+FILENAME_SPANK_1 = 'assets/spank1.png'
+FILENAME_SPANK_2 = 'assets/spank2.png'
 
 REGEX_BONK = re.compile(r'^\s*/(sunder)?bonk(\s*<@!?[0-9]*>)*\s*$')
+REGEX_SPANK = re.compile(r'^\s*/spank(\s*<@!?[0-9]*>)*\s*$')
+REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)*$')
 
 
 class EasterEggs(commands.Cog):
@@ -22,30 +24,26 @@ class EasterEggs(commands.Cog):
     async def on_message(self, message):
         if message.author.id == self.bot.user.id:
             return
-        elif REGEX_BONK.match(message.content):
+        elif REGEX_BONK.match(message.content) and len(message.mentions) == 1:
             sunder = 'sunder' in message.content
-            if len(message.mentions) == 0:
-                await EasterEggs.bonk(message.channel, message.author, sunder=sunder)
-            elif len(message.mentions) == 1:
-                await EasterEggs.bonk(message.channel, message.author, message.mentions[0], sunder=sunder)
-            else:
-                await message.channel.send(embed=create_basic_embed('I can only bonk one person at a time!', '😵'))
+            await EasterEggs.bonk(message.channel, message.author, message.mentions[0], sunder=sunder)
+        elif REGEX_SPANK.match(message.content) and len(message.mentions) == 1:
+            await EasterEggs.spank(message.channel, message.author, message.mentions[0])
+        elif REGEX_SPANK_EMOJI.match(message.content):
+            await EasterEggs.spank(message.channel, self.bot.user, message.author)
 
     @staticmethod
-    async def bonk(channel, bonker, bonkee=None, sunder=False):
+    async def bonk(channel, bonker, bonkee, sunder):
         async with channel.typing():
             bonk_image = Image.open(FILENAME_BONK)
+            bonker_image = Image.open(FILENAME_SUNDER) if sunder else await EasterEggs.get_avatar_image(bonker)
+            bonkee_image = await EasterEggs.get_avatar_image(bonkee)
 
-            bonker_asset = bonker and bonker.avatar_url_as(format='png', size=128)
-            bonkee_asset = bonkee and bonkee.avatar_url_as(format='png', size=128)
-
-            if bonker_asset:
-                bonker_image = Image.open(FILENAME_SUNDER) if sunder else Image.open(BytesIO(await bonker_asset.read()))
+            if bonker_image:
                 bonk_image = EasterEggs.process_image(
                     bonker_image, new_size=(75, 75), apply_mask=True, bg_image=bonk_image, position=(42, 30))
 
-            if bonkee_asset:
-                bonkee_image = Image.open(BytesIO(await bonkee_asset.read()))
+            if bonkee_image:
                 bonk_image = EasterEggs.process_image(
                     bonkee_image, new_size=(100, 32), rotate_angle=28, apply_mask=True,
                     bg_image=bonk_image, position=(270, 94))
@@ -54,6 +52,39 @@ class EasterEggs(commands.Cog):
             bonk_image.save(image_bytes, 'png')
             image_bytes.seek(0)
             await channel.send(file=File(fp=image_bytes, filename='bonk.png'))
+
+    @staticmethod
+    async def spank(channel, spanker, spankee):
+        async with channel.typing():
+            spank_image_1 = Image.open(FILENAME_SPANK_1)
+            spank_image_2 = Image.open(FILENAME_SPANK_2)
+            spanker_image = await EasterEggs.get_avatar_image(spanker)
+            spankee_image = await EasterEggs.get_avatar_image(spankee)
+
+            if spanker_image:
+                spank_image_1 = EasterEggs.process_image(
+                    spanker_image, new_size=(64, 64), apply_mask=True, bg_image=spank_image_1, position=(155, 75))
+                spank_image_2 = EasterEggs.process_image(
+                    spanker_image, new_size=(64, 64), apply_mask=True, bg_image=spank_image_2, position=(142, 75))
+
+            if spankee_image:
+                spank_image_1 = EasterEggs.process_image(
+                    spankee_image, new_size=(50, 50), apply_mask=True, bg_image=spank_image_1, position=(146, 202))
+                spank_image_2 = EasterEggs.process_image(
+                    spankee_image, new_size=(50, 50), apply_mask=True, bg_image=spank_image_2, position=(141, 202))
+
+        with BytesIO() as image_bytes:
+            spank_image_1.save(image_bytes, 'gif', save_all=True, append_images=[spank_image_2], duration=180, loop=0)
+            image_bytes.seek(0)
+            await channel.send(file=File(fp=image_bytes, filename='spank.gif'))
+
+    @staticmethod
+    async def get_avatar_image(user):
+        if user:
+            asset = user.avatar_url_as(format='png', size=128)
+            if asset:
+                return Image.open(BytesIO(await asset.read()))
+        return None
 
     @staticmethod
     def process_image(image, new_size=None, rotate_angle=0, apply_mask=False, bg_image=None, position=(0, 0)):
