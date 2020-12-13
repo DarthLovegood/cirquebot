@@ -10,10 +10,11 @@ FILENAME_MASK = 'assets/mask.png'
 FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
+FILENAME_THERON = 'assets/theron.png'
 
-REGEX_BONK = re.compile(r'^\s*/(sunder)?bonk(\s*<@!?[0-9]*>)*\s*$')
-REGEX_SPANK = re.compile(r'^\s*/spank(\s*<@!?[0-9]*>)*\s*$')
-REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)*$')
+REGEX_BONK = re.compile(r'^\s*/(sunder)?bonk(\s*<@!?[0-9]*>)*\s*$', re.IGNORECASE)
+REGEX_SPANK = re.compile(r'^\s*/spank((\s*theron)|(\s*<@!?[0-9]*>)*)\s*$', re.IGNORECASE)
+REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
 
 
 class EasterEggs(commands.Cog):
@@ -25,15 +26,18 @@ class EasterEggs(commands.Cog):
         if message.author.id == self.bot.user.id:
             return
         elif REGEX_BONK.match(message.content) and len(message.mentions) == 1:
-            sunder = 'sunder' in message.content
+            sunder = 'sunder' in message.content.lower()
             await EasterEggs.bonk(message.channel, message.author, message.mentions[0], sunder=sunder)
-        elif REGEX_SPANK.match(message.content) and len(message.mentions) == 1:
-            await EasterEggs.spank(message.channel, message.author, message.mentions[0])
+        elif REGEX_SPANK.match(message.content):
+            if 'theron' in message.content.lower() and len(message.mentions) == 0:
+                await EasterEggs.spank(message.channel, message.author, None, True)
+            elif len(message.mentions) == 1:
+                await EasterEggs.spank(message.channel, message.author, message.mentions[0])
         elif REGEX_SPANK_EMOJI.match(message.content):
             await EasterEggs.spank(message.channel, self.bot.user, message.author)
 
     @staticmethod
-    async def bonk(channel, bonker, bonkee, sunder):
+    async def bonk(channel, bonker, bonkee, sunder=False):
         async with channel.typing():
             bonk_image = Image.open(FILENAME_BONK)
             bonker_image = Image.open(FILENAME_SUNDER) if sunder else await EasterEggs.get_avatar_image(bonker)
@@ -54,12 +58,12 @@ class EasterEggs(commands.Cog):
             await channel.send(file=File(fp=image_bytes, filename='bonk.png'))
 
     @staticmethod
-    async def spank(channel, spanker, spankee):
+    async def spank(channel, spanker, spankee, theron=False):
         async with channel.typing():
             spank_image_1 = Image.open(FILENAME_SPANK_1)
             spank_image_2 = Image.open(FILENAME_SPANK_2)
             spanker_image = await EasterEggs.get_avatar_image(spanker)
-            spankee_image = await EasterEggs.get_avatar_image(spankee)
+            spankee_image = Image.open(FILENAME_THERON) if theron else await EasterEggs.get_avatar_image(spankee)
 
             if spanker_image:
                 spank_image_1 = EasterEggs.process_image(
