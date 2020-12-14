@@ -15,19 +15,19 @@ class Nicknames(commands.Cog):
             {
                 KEY_EMOJI: '🧾',
                 KEY_TITLE: 'list',
-                KEY_DESCRIPTION: 'Lists all of the existing custom nicknames.',
+                KEY_DESCRIPTION: 'Lists all of the existing custom nicknames on this server.',
                 KEY_EXAMPLE: '!cb nn list'
             },
             {
                 KEY_EMOJI: '📝',
                 KEY_TITLE: 'set [member] [nickname]',
-                KEY_DESCRIPTION: 'Sets the nickname for the given member.',
+                KEY_DESCRIPTION: 'Sets the nickname for the given member on this server.',
                 KEY_EXAMPLE: '!cb nn set "Lovegood#0001" "The Boba Queen"'
             },
             {
                 KEY_EMOJI: '🧼',
                 KEY_TITLE: 'delete [member]',
-                KEY_DESCRIPTION: 'Deletes the nickname for the given member.',
+                KEY_DESCRIPTION: 'Deletes the nickname for the given member on this server.',
                 KEY_EXAMPLE: '!cb nn delete "Lovegood#0001"'
             }
         ]
@@ -39,8 +39,10 @@ class Nicknames(commands.Cog):
             c = connection.cursor()
             c.execute(
                 '''CREATE TABLE IF NOT EXISTS `nicknames` (
-                    `id` INTEGER PRIMARY KEY UNIQUE,
-                    `nickname` TEXT NOT NULL UNIQUE
+                    `user_id` INTEGER,
+                    `server_id` INTEGER,
+                    `nickname` TEXT NOT NULL,
+                    PRIMARY KEY (`user_id`, `server_id`)
                 );''')
             connection.commit()
             c.close()
@@ -59,16 +61,18 @@ class Nicknames(commands.Cog):
     async def insert_or_update_nickname(self, ctx, args):
         user_str = args[0]
         member = Nicknames.get_member_from_guild(ctx, user_str)
-        nickname = " ".join(args[1:])
+        nickname = ' '.join(args[1:])
         if member:
             with sqlite3.connect(self.db) as connection:
                 c = connection.cursor()
-                c.execute('SELECT * FROM nicknames WHERE id=?', (member.id,))
+                c.execute('SELECT * FROM nicknames WHERE user_id=? AND server_id=?', (member.id, ctx.guild.id))
                 if c.fetchone():
-                    c.execute('UPDATE nicknames SET nickname=? WHERE id=?', (nickname, member.id))
+                    c.execute(
+                        'UPDATE nicknames SET nickname=? WHERE user_id=? AND server_id=?',
+                        (nickname, member.id, ctx.guild.id))
                     embed_msg = f'Updated nickname **{nickname}** for user **{member}**.'
                 else:
-                    c.execute('INSERT INTO nicknames VALUES (?, ?)', (member.id, nickname))
+                    c.execute('INSERT INTO nicknames VALUES (?, ?, ?)', (member.id, ctx.guild.id, nickname))
                     embed_msg = f'Added nickname **{nickname}** for user **{member}**.'
                 c.close()
             await ctx.send(embed=create_basic_embed(embed_msg, EMOJI_SUCCESS))
@@ -76,15 +80,15 @@ class Nicknames(commands.Cog):
             await Nicknames.on_member_not_found(ctx, user_str)
 
     async def delete_nickname(self, ctx, args):
-        user_str = " ".join(args)
+        user_str = ' '.join(args)
         member = Nicknames.get_member_from_guild(ctx, user_str)
         if member:
             with sqlite3.connect(self.db) as connection:
                 c = connection.cursor()
-                c.execute('SELECT * FROM nicknames WHERE id=?', (member.id,))
+                c.execute('SELECT * FROM nicknames WHERE user_id=? AND server_id=?', (member.id, ctx.guild.id))
                 row = c.fetchone()
                 if row:
-                    c.execute('DELETE FROM nicknames WHERE id=?', (member.id,))
+                    c.execute('DELETE FROM nicknames WHERE user_id=? AND server_id=?', (member.id, ctx.guild.id))
                     embed_msg = f'Deleted nickname **{row[1]}** for user **{member}**.'
                     embed_emoji = EMOJI_SUCCESS
                 else:
@@ -99,12 +103,13 @@ class Nicknames(commands.Cog):
         table_rows = []
         with sqlite3.connect(self.db) as connection:
             c = connection.cursor()
-            for row in c.execute('SELECT * FROM nicknames'):
+            for row in c.execute('SELECT * FROM nicknames WHERE server_id=?', (ctx.guild.id,)):
                 member = ctx.guild.get_member(row[0])
-                table_rows.append((row[1], str(member), member.display_name))
+                if member:
+                    table_rows.append((row[2], str(member), member.display_name))
             c.close()
         title = f'Nicknames in "{ctx.guild.name}"'
-        headers = ("🤝 Nickname", "💬 Discord Handle", "🔍 Display Name")
+        headers = ('🤝 Nickname', '💬 Discord Handle', '🔍 Display Name')
         embed = create_table_embed(title, headers, table_rows)
         await ctx.send(embed=embed)
 
@@ -131,11 +136,8 @@ class Nicknames(commands.Cog):
             return Nicknames.get_member_from_guild(ctx, results[0][0])
 
     def get_member_by_nickname(self, ctx, nickname):
-        return self.get_member_from_db(ctx, 'SELECT * FROM nicknames WHERE nickname=?', nickname)
-
-    # TODO: Is this necessary?
-    def get_member_by_id(self, ctx, member_id):
-        return self.get_member_from_db(ctx, 'SELECT * FROM nicknames WHERE id=?', member_id)
+        return self.get_member_from_db(
+            ctx, 'SELECT * FROM nicknames WHERE nickname=? AND server_id=?', (nickname, ctx.guild.id))
 
 
 def setup(bot):
