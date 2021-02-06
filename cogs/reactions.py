@@ -122,6 +122,12 @@ class Reactions(commands.Cog):
                 KEY_TITLE: 'reset [message link]',
                 KEY_DESCRIPTION: 'Wipes the reaction/role configuration for the linked message.',
                 KEY_EXAMPLE: '!cb ra reset https://discord.com/URL'
+            },
+            {
+                KEY_EMOJI: '📨',
+                KEY_TITLE: 'copy [source message link] [destination message link]',
+                KEY_DESCRIPTION: 'Copies the reaction/role config from the source message to the destination message.',
+                KEY_EXAMPLE: '!cb ra copy https://discord.com/SRC https://discord.com/DST'
             }
         ]
     }
@@ -158,6 +164,8 @@ class Reactions(commands.Cog):
             await self.config(ctx, args[0])
         elif command == 'reset' and len(args) == 1:
             await self.reset(ctx, args[0])
+        elif command == 'copy' and len(args) == 2:
+            await self.copy(ctx, args[0], args[1])
         else:
             await ctx.send(embed=create_help_embed(self.help))
 
@@ -395,6 +403,10 @@ class Reactions(commands.Cog):
             return message_deleted
 
     @staticmethod
+    def get_available_reactions(config):
+        return [item[0] for item in config[KEY_REACTION_ROLE_MENU]]
+
+    @staticmethod
     def get_role_str_from_config(config, emoji):
         for reaction, role in config[KEY_REACTION_ROLE_MENU]:
             if reaction == emoji:
@@ -462,6 +474,18 @@ class Reactions(commands.Cog):
         else:
             return message
 
+    @staticmethod
+    async def ensure_relevant_reactions(message, config):
+        if config[KEY_IS_REACTIVE]:
+            available_reactions = Reactions.get_available_reactions(config)
+            for emoji in available_reactions:
+                await message.add_reaction(emoji)  # Make sure all relevant reactions are present.
+            for reaction in message.reactions:
+                if reaction.emoji not in available_reactions:
+                    await message.clear_reaction(reaction.emoji)  # Remove all irrelevant reactions.
+        else:
+            await message.clear_reactions()
+
     async def list(self, ctx):
         server_info = await self.get_reaction_roles_for_server(ctx.guild.id)
         table_rows = []
@@ -517,6 +541,21 @@ class Reactions(commands.Cog):
                 embed_msg = f'Message **{message_link_string}** does not have a reaction/role configuration.'
                 embed_emoji = EMOJI_WARNING
             await ctx.send(embed=create_basic_embed(embed_msg, embed_emoji))
+
+    async def copy(self, ctx, src_message_link, dst_message_link):
+        bot_member = ctx.guild.get_member(self.bot.user.id)
+        src_message = await Reactions.validate_message(ctx, src_message_link, bot_member)
+        dst_message = await Reactions.validate_message(ctx, dst_message_link, bot_member)
+
+        if src_message and dst_message:
+            src_config = await self.get_config_for_message(src_message)
+            await self.save_config_for_message(dst_message, src_config)
+            await Reactions.ensure_relevant_reactions(dst_message, src_config)
+
+            src_string = Reactions.get_message_link_string(src_message_link)
+            dst_string = Reactions.get_message_link_string(dst_message_link)
+            embed_msg = f'Copied reaction/role configuration from message **{src_string}** to message **{dst_string}**.'
+            await ctx.send(embed=create_basic_embed(embed_msg, EMOJI_SUCCESS))
 
     class RASession(commands.Cog):
         def __init__(self, parent, ctx, config, display_message):
@@ -635,7 +674,7 @@ class Reactions(commands.Cog):
                 embed_text = 'Please react with the emoji corresponding to the reaction/role you\'d like to edit, ' \
                              'or react with a new (non-custom) emoji if you would like to assign a role to it.'
                 prompt_message = await self.channel.send(embed=create_basic_embed(embed_text, emoji))
-                existing_reactions = Reactions.RASession.get_available_reactions(self.config)
+                existing_reactions = Reactions.get_available_reactions(self.config)
                 await self.prompt_for_reaction(
                     prompt_message, self.main_reaction_role_callback, existing_reactions, accept_any_emoji=True)
             elif emoji == EMOJI_EDIT_CHANNEL:
@@ -682,7 +721,7 @@ class Reactions(commands.Cog):
 
         async def main_reaction_role_callback(self, emoji, old_prompt_message, unused_extra_data):
             await old_prompt_message.delete()
-            if emoji in Reactions.RASession.get_available_reactions(self.config):
+            if emoji in Reactions.get_available_reactions(self.config):
                 role = Reactions.get_role_str_from_config(self.config, emoji)
                 embed_text = f'**Editing the \u200B {emoji} \u200B reaction, currently assigned to ' \
                              f'the **{role}** role.** {TEXT_REACTION_ROLE_MENU}'
@@ -753,16 +792,7 @@ class Reactions(commands.Cog):
                 embed_text = f'Your changes have been saved and are now live. [Check it out!]({message_link})'
                 embed = create_basic_embed(embed_text, '🥳')
 
-            if self.config[KEY_IS_REACTIVE]:
-                available_reactions = Reactions.RASession.get_available_reactions(self.config)
-                for emoji in available_reactions:
-                    await message.add_reaction(emoji)  # Make sure all relevant reactions are present.
-                for reaction in message.reactions:
-                    if reaction.emoji not in available_reactions:
-                        await message.clear_reaction(reaction.emoji)  # Remove all irrelevant reactions.
-            else:
-                await message.clear_reactions()
-
+            await Reactions.ensure_relevant_reactions(message, self.config)
             await self.finish(embed)
 
         @staticmethod
@@ -780,10 +810,6 @@ class Reactions(commands.Cog):
             for key, values in EMOJI_OPTIONS.items():
                 emoji_string += ' ' + values[config[key]]
             return emoji_string.strip()
-
-        @staticmethod
-        def get_available_reactions(config):
-            return [item[0] for item in config[KEY_REACTION_ROLE_MENU]]
 
         @staticmethod
         def get_next_option(emoji):
