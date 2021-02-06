@@ -1,5 +1,6 @@
 import asyncio
 import numbers
+from datetime import datetime
 from json import loads
 
 import aiohttp
@@ -8,6 +9,11 @@ from discord import NotFound, Forbidden
 from lib.embeds import EMOJI_ERROR, create_basic_embed
 
 TEXT_INVALID_MESSAGE_LINK = 'Please make sure the message link is valid.'
+
+
+def log(text, indent=0):
+    timestamp = str(datetime.now())[:-3]
+    print(f'{timestamp}  |  {"    " * indent}{text}')
 
 
 def extract_channel_id(message_link):

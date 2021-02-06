@@ -40,10 +40,13 @@ def create_help_embed(help_dict: dict):
     return embed
 
 
-def create_table_embed(title: str, headers: tuple, rows: list):
-    embed = discord.Embed(title=title, color=COLOR_DEFAULT)
+def create_table_embed(title: str, headers: tuple, rows: list, description: str = None, mark_rows: bool = True):
+    embed = discord.Embed(title=title, description=description, color=COLOR_DEFAULT)
     num_fields = len(headers)
     field_values = ['' for i in range(num_fields)]
+
+    if description:
+        embed.add_field(name="** **", value="** **", inline=False)
 
     if len(rows) == 0:
         for i in range(num_fields):
@@ -56,8 +59,9 @@ def create_table_embed(title: str, headers: tuple, rows: list):
             print(f'Invalid number of items in row: expected {num_fields} but found {len(row)}.')
             return None
         for i in range(num_fields):
-            emoji = "🟪" if r % 2 == 0 else "⬜"
-            field_values[i] += f'{emoji} {row[i]}\n'
+            if mark_rows:
+                field_values[i] += f"{'🟪' if r % 2 == 0 else '⬜'} "
+            field_values[i] += f'{row[i]}\n'
 
     for i in range(num_fields):
         embed.add_field(name=headers[i], value=field_values[i])
