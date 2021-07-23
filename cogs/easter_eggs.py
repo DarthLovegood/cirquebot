@@ -20,6 +20,7 @@ REGEX_BABY_SHARK = re.compile(r'^\s*/babyshark(\s*<@!?[0-9]*>)*\s*$', re.IGNOREC
 REGEX_BING_BANG_BONG = re.compile(r'^\s*/bingbangbong(\s*<@!?[0-9]*>)*\s*$', re.IGNORECASE)
 REGEX_BONK = re.compile(r'^\s*/(sunder)?bonk(\s*<@!?[0-9]*>)*\s*$', re.IGNORECASE)
 REGEX_NYAN_CAT = re.compile(r'^\s*/nyancat(\s*<@!?[0-9]*>)*\s*$', re.IGNORECASE)
+REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
 REGEX_RICK_ROLL = re.compile(r'^\s*/rickroll(\s*<@!?[0-9]*>)*\s*$', re.IGNORECASE)
 REGEX_SPANK = re.compile(r'^\s*/spank((\s*theron)|(\s*<@!?[0-9]*>)*)\s*$', re.IGNORECASE)
 REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
@@ -61,6 +62,8 @@ class EasterEggs(commands.Cog):
         elif REGEX_NYAN_CAT.match(message.content) and len(message.mentions) == 1:
             await EasterEggs.play_youtube_audio(
                 self.bot, message.mentions[0], message.channel, URL_NYAN_CAT, TEXT_NYAN_CAT)
+        elif REGEX_QWEPHESS.match(message.content):
+            await EasterEggs.correctQwephess(message.channel, message)
         elif REGEX_RICK_ROLL.match(message.content) and len(message.mentions) == 1:
             await EasterEggs.play_youtube_audio(
                 self.bot, message.mentions[0], message.channel, URL_RICK_ROLL, TEXT_RICK_ROLL)
@@ -147,6 +150,17 @@ class EasterEggs(commands.Cog):
             if asset:
                 return Image.open(BytesIO(await asset.read()))
         return None
+    
+    @staticmethod
+    async def correctQwephess(channel, message):
+        async with channel.typing():
+            message_blocks = re.split("kephess", message.content, flags=re.IGNORECASE)
+            kephess_index = message.content.lower().find("kephess")
+            kephess_string = message.content[kephess_index:(kephess_index + len("kephess"))]
+            qw = "Qw" if kephess_string[0].isupper() else "qw"
+            new_message = message_blocks[0] + f"~~{kephess_string}~~ {qw}{kephess_string[1:]}" + message_blocks[1]
+            await message.reply(new_message, mention_author=False)
+
 
     @staticmethod
     def process_image(image, new_size=None, rotate_angle=0, apply_mask=False, bg_image=None, position=(0, 0)):
