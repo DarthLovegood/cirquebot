@@ -63,7 +63,7 @@ class EasterEggs(commands.Cog):
             await EasterEggs.play_youtube_audio(
                 self.bot, message.mentions[0], message.channel, URL_NYAN_CAT, TEXT_NYAN_CAT)
         elif REGEX_QWEPHESS.match(message.content):
-            await EasterEggs.correctQwephess(message.channel, message)
+            await EasterEggs.fix_qwephess(message.channel, message)
         elif REGEX_RICK_ROLL.match(message.content) and len(message.mentions) == 1:
             await EasterEggs.play_youtube_audio(
                 self.bot, message.mentions[0], message.channel, URL_RICK_ROLL, TEXT_RICK_ROLL)
