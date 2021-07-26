@@ -8,6 +8,7 @@ from discord.ext import commands
 
 from lib.embeds import *
 from lib.utils import log, extract_message_id, fetch_message
+from secrets import SUPER_USERS
 
 CONFIRMATION_TYPE_NONE = 0
 CONFIRMATION_TYPE_PRIVATE = 1
@@ -226,8 +227,12 @@ class Reactions(commands.Cog):
             elif (event_type == REACTION_ADD) and (not config[KEY_ALLOW_CANCELLATION]):
                 # Only add the role if the user has not already selected a role from the message.
                 # Also remove the current reaction if it's invalid, which will trigger a new REACTION_REMOVE event.
-                role_reaction_map = {Reactions.get_role_from_config(config, reaction.emoji, message.guild): reaction
-                                     for reaction in message.reactions}
+                # TODO: Optimize this! We probably don't need to loop through twice.
+                role_reaction_map = {}
+                for reaction_option in message.reactions:
+                    role_option = Reactions.get_role_from_config(config, reaction_option.emoji, message.guild)
+                    if role_option:
+                        role_reaction_map[role_option] = reaction_option
                 already_selected_role = None
                 for role_option, reaction_option in role_reaction_map.items():
                     if role_option in user.roles:
@@ -419,7 +424,8 @@ class Reactions(commands.Cog):
     @staticmethod
     def get_role_from_config(config, emoji, server):
         role_str = Reactions.get_role_str_from_config(config, emoji)
-        return Reactions.get_role_from_role_str(role_str, server)
+        if role_str:
+            return Reactions.get_role_from_role_str(role_str, server)
 
     @staticmethod
     def get_message_link_string(message_link):
@@ -481,7 +487,7 @@ class Reactions(commands.Cog):
             for emoji in available_reactions:
                 await message.add_reaction(emoji)  # Make sure all relevant reactions are present.
             for reaction in message.reactions:
-                if reaction.emoji not in available_reactions:
+                if str(reaction.emoji) not in available_reactions:
                     await message.clear_reaction(reaction.emoji)  # Remove all irrelevant reactions.
         else:
             await message.clear_reactions()
@@ -575,7 +581,8 @@ class Reactions(commands.Cog):
 
         def check_reaction(self, reaction, user):
             is_emoji_expected = (not self.expected_emoji) or (str(reaction.emoji) in self.expected_emoji)
-            is_emoji_valid = is_emoji_expected and not reaction.custom_emoji
+            is_emoji_allowed = (not reaction.custom_emoji) or (user.id in SUPER_USERS)
+            is_emoji_valid = is_emoji_expected and is_emoji_allowed
             return (user.id == self.owner.id) and (reaction.message.id == self.reactive_message_id) and is_emoji_valid
 
         def check_message(self, message):
@@ -730,7 +737,7 @@ class Reactions(commands.Cog):
                     new_prompt_message,
                     self.edit_or_delete_reaction_role_callback,
                     [EMOJI_ROLE_EDIT, EMOJI_ROLE_DELETE, EMOJI_ERROR],
-                    extra_data=(emoji, role))
+                    extra_data=[emoji, role])
             else:
                 await self.show_role_prompt(emoji)
 
