@@ -144,15 +144,7 @@ class EasterEggs(commands.Cog):
             await channel.send(file=File(fp=image_bytes, filename='spank.gif'))
 
     @staticmethod
-    async def get_avatar_image(user):
-        if user:
-            asset = user.avatar_url_as(format='png', size=128)
-            if asset:
-                return Image.open(BytesIO(await asset.read()))
-        return None
-    
-    @staticmethod
-    async def correctQwephess(channel, message):
+    async def fix_qwephess(channel, message):
         async with channel.typing():
             message_blocks = re.split("kephess", message.content, flags=re.IGNORECASE)
             kephess_index = message.content.lower().find("kephess")
@@ -161,6 +153,13 @@ class EasterEggs(commands.Cog):
             new_message = message_blocks[0] + f"~~{kephess_string}~~ {qw}{kephess_string[1:]}" + message_blocks[1]
             await message.reply(new_message, mention_author=False)
 
+    @staticmethod
+    async def get_avatar_image(user):
+        if user:
+            asset = user.avatar_url_as(format='png', size=128)
+            if asset:
+                return Image.open(BytesIO(await asset.read()))
+        return None
 
     @staticmethod
     def process_image(image, new_size=None, rotate_angle=0, apply_mask=False, bg_image=None, position=(0, 0)):
