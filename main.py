@@ -28,10 +28,13 @@ def initialize_bot(config):
     if config == CONFIG_PROD:
         return BOT_TOKEN_PROD
 
+    bot.load_extension('cogs.audio_player')
     bot.load_extension('cogs.clownquest')
     bot.load_extension('cogs.events')
     bot.load_extension('cogs.prefix')
     bot.load_extension('cogs.welcome')
+
+    bot.unload_extension('cogs.error_handler')
 
     return BOT_TOKEN_DEV
 
