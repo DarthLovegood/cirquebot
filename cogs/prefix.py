@@ -22,7 +22,7 @@ class Prefix(commands.Cog):
             },
             {
                 KEY_EMOJI: '📝',
-                KEY_TITLE: 'set',
+                KEY_TITLE: 'set [prefix]',
                 KEY_DESCRIPTION: 'Changes the prefix used for commands in this server to the given string.',
                 KEY_EXAMPLE: '!cb pf set "!"'
             },
