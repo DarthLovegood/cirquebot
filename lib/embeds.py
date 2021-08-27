@@ -1,4 +1,5 @@
 import discord
+from lib.prefixes import DEFAULT_PREFIX
 
 COLOR_DEFAULT = 0x9B59B6
 COLOR_PUB = 0x2176CD
@@ -27,7 +28,10 @@ def create_basic_embed(description: str, emoji: str = None):
     return discord.Embed(description=description, color=COLOR_DEFAULT)
 
 
-def create_help_embed(help_dict: dict):
+def create_help_embed(help_dict: dict, prefix: str = None):
+    if prefix and prefix != DEFAULT_PREFIX:
+        help_dict = replace_default_prefix(help_dict, prefix)
+
     title = FORMAT_HELP_TITLE.format(help_dict[KEY_COMMAND])
     embed = discord.Embed(title=title, description=help_dict[KEY_DESCRIPTION], color=COLOR_DEFAULT)
 
@@ -38,6 +42,19 @@ def create_help_embed(help_dict: dict):
         embed.add_field(name=title, value=description, inline=False)
 
     return embed
+
+
+def replace_default_prefix(old_dict: dict, custom_prefix: str):
+    new_dict = {}
+    for key, value in old_dict.items():
+        if isinstance(value, dict):
+            value = replace_default_prefix(value, custom_prefix)
+        elif isinstance(value, list):
+            value = [replace_default_prefix(item, custom_prefix) for item in value]  # This assumes all items are dicts.
+        elif isinstance(value, str):
+            value = value.replace(DEFAULT_PREFIX, custom_prefix)
+        new_dict[key] = value
+    return new_dict
 
 
 def create_table_embed(title: str, headers: tuple, rows: list, description: str = None, mark_rows: bool = True):

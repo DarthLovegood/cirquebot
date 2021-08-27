@@ -1,8 +1,7 @@
 import sqlite3
-
 from discord.ext import commands
-
 from lib.embeds import *
+from lib.prefixes import get_prefix
 
 
 class Nicknames(commands.Cog):
@@ -56,7 +55,8 @@ class Nicknames(commands.Cog):
         elif command in ['all', 'list', 'ls', 'show'] and len(args) == 0:
             await self.list_nicknames(ctx)
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     async def insert_or_update_nickname(self, ctx, args):
         user_str = args[0]

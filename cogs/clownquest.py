@@ -1,14 +1,13 @@
+import aiofiles.os
 import asyncio
 import io
 import re
 import sqlite3
-from json import dumps, loads
-
-import aiofiles.os
 from discord.ext import commands
-
+from json import dumps, loads
 from lib import ocr, utils
 from lib.embeds import *
+from lib.prefixes import get_prefix
 
 EMOJI_SESSION_NEXT = '▶'
 EMOJI_SESSION_COMPLETED = '🥳'
@@ -93,7 +92,8 @@ class Clownquest(commands.Cog):
         elif command == 'start' and len(args) == 0:
             await self.start(ctx)
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     @staticmethod
     def get_bounds_for_user(db, user_id):

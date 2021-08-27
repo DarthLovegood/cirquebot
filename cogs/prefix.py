@@ -29,7 +29,7 @@ class Prefix(commands.Cog):
             {
                 KEY_EMOJI: '🔄',
                 KEY_TITLE: 'reset',
-                KEY_DESCRIPTION: 'Resets the prefix used for commands in this server to the default `!cb `.',
+                KEY_DESCRIPTION: 'Resets the prefix used for commands in this server to the default `!cb\u200B `.',
                 KEY_EXAMPLE: '!cb pf reset'
             }
         ]
@@ -48,7 +48,8 @@ class Prefix(commands.Cog):
         elif command == 'reset' and not args and await Prefix.check_admin(ctx):
             await Prefix.set_prefix(ctx, DEFAULT_PREFIX)
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     @staticmethod
     async def check_admin(ctx):

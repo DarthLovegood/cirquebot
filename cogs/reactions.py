@@ -2,11 +2,10 @@ import asyncio
 import json
 import sqlite3
 from datetime import datetime
-
 from discord import HTTPException
 from discord.ext import commands
-
 from lib.embeds import *
+from lib.prefixes import get_prefix
 from lib.utils import log, extract_message_id, fetch_message
 from secrets import SUPER_USERS
 
@@ -168,7 +167,8 @@ class Reactions(commands.Cog):
         elif command == 'copy' and len(args) == 2:
             await self.copy(ctx, args[0], args[1])
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, event):

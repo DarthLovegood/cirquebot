@@ -1,9 +1,8 @@
 import sqlite3
-
 from discord.ext import commands
-
 from lib.embeds import *
 from lib.event import Event
+from lib.prefixes import get_prefix
 
 FORMAT_JSON = '```json\n{0}```'
 
@@ -66,6 +65,9 @@ class Events(commands.Cog):
             await ctx.send(FORMAT_JSON.format(Event().to_json()))
         elif command == 'create' and len(args) == 1:
             await self.create_event(ctx, args[0])
+        elif command == 'new' and len(args) == 0:
+            # TODO: Document and implement this - interactive event creation session.
+            pass
         elif command == 'edit' and len(args) == 1:
             pass
         elif command == 'copy' and len(args) == 2:
@@ -75,7 +77,8 @@ class Events(commands.Cog):
         elif command == 'close' and len(args) == 1:
             pass
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     @staticmethod
     async def create_event(ctx, template_msg_link):

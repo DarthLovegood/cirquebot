@@ -1,6 +1,6 @@
 from discord.ext import commands
-
 from lib.embeds import *
+from lib.prefixes import get_prefix
 from lib.utils import fetch_message, get_channel, TEXT_INVALID_MESSAGE_LINK
 
 TEXT_FORMAT_TEMPLATE = 'Copy and paste the following template:\n```json\n{0}\n```'  # arg: message text
@@ -48,7 +48,8 @@ class Rewrite(commands.Cog):
         elif command == 'replace' and len(args) == 2:
             await Rewrite.replace(ctx, args[0], args[1])
         else:
-            await ctx.send(embed=create_help_embed(self.help))
+            prefix = get_prefix(self.bot, ctx.message)
+            await ctx.send(embed=create_help_embed(self.help, prefix))
 
     @staticmethod
     async def post(ctx, message_link, channel_str):
