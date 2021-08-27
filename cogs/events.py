@@ -10,6 +10,7 @@ FORMAT_JSON = '```json\n{0}```'
 class Events(commands.Cog):
     db = 'data/events.db'
     help = {
+        KEY_EMOJI: '📆',
         KEY_TITLE: 'Events',
         KEY_DESCRIPTION: 'Manages dynamic sign-up sheets for custom guild events.',
         KEY_COMMAND: '!cb events',

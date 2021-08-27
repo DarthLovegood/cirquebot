@@ -7,6 +7,7 @@ from lib.prefixes import get_prefix
 class Nicknames(commands.Cog):
     db = 'data/nicknames.db'
     help = {
+        KEY_EMOJI: '🤝',
         KEY_TITLE: 'Nicknames',
         KEY_DESCRIPTION: 'Manages a database of manually-set custom nicknames for members of the server.',
         KEY_COMMAND: '!cb nicknames',

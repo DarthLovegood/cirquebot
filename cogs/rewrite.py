@@ -9,6 +9,7 @@ TEXT_ONLY_HUMANS = 'I can only post messages that were written by humans!'
 
 class Rewrite(commands.Cog):
     help = {
+        KEY_EMOJI: '📝',
         KEY_TITLE: 'Rewrite',
         KEY_DESCRIPTION: 'Facilitates collaborative editing of Discord posts.',
         KEY_COMMAND: '!cb rewrite',

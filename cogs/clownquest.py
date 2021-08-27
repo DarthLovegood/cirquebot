@@ -33,6 +33,7 @@ TIMEOUT_SECONDS = 60
 class Clownquest(commands.Cog):
     db = 'data/clownquest.db'
     help = {
+        KEY_EMOJI: '🤡',
         KEY_TITLE: 'Clownquest',
         KEY_DESCRIPTION: 'Extracts conquest data from screenshots of the guild member list.',
         KEY_COMMAND: '!cb clownquest',

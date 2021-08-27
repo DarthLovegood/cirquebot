@@ -101,6 +101,7 @@ CACHE_TTL_SECONDS = 3600  # 1 hour
 class Reactions(commands.Cog):
     db = 'data/reactions.db'
     help = {
+        KEY_EMOJI: '👍',
         KEY_TITLE: 'Reactions',
         KEY_DESCRIPTION: 'Manages the connections between message reactions and role assignments.',
         KEY_COMMAND: '!cb reactions',
