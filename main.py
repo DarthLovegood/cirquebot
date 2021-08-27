@@ -1,20 +1,17 @@
-import sys
-
 import discord
+import sys
 from discord.ext import commands
-
+from lib.prefixes import get_prefix
 from secrets import BOT_TOKEN_DEV, BOT_TOKEN_LITE, BOT_TOKEN_PROD
 
 CONFIG_LITE = 'LITE'
 CONFIG_PROD = 'PROD'
 CONFIG_DEV = 'DEV'
 
-COMMAND_PREFIX = '!cb '
-
 intents = discord.Intents.default()
 intents.members = True
 
-bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 
 
 def initialize_bot(config):
@@ -32,6 +29,7 @@ def initialize_bot(config):
 
     bot.load_extension('cogs.clownquest')
     bot.load_extension('cogs.events')
+    bot.load_extension('cogs.prefix')
     bot.load_extension('cogs.welcome')
 
     return BOT_TOKEN_DEV
