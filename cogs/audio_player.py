@@ -21,7 +21,7 @@ class AudioPlayer(commands.Cog):
         audio_emoji = '🦈'
         audio_title = 'Baby Shark'
         audio_url = 'https://www.youtube.com/watch?v=LBHYhvOHgvc'
-        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url)
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=17)
 
     @commands.command()
     async def bingbangbong(self, ctx):
@@ -45,11 +45,18 @@ class AudioPlayer(commands.Cog):
         await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url)
 
     @commands.command()
+    async def stayinalive(self, ctx):
+        audio_emoji = '🚑'
+        audio_title = 'Stayin\' Alive'
+        audio_url = 'https://www.youtube.com/watch?v=fNFzfwLM72c'
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=43)
+
+    @commands.command()
     async def stopaudio(self, ctx):
         await self.disconnect_voice_clients()
         await ctx.channel.send(embed=create_basic_embed('Successfully stopped all audio playback.', EMOJI_SUCCESS))
 
-    async def handle_audio_command(self, ctx, audio_emoji, audio_title, audio_url):
+    async def handle_audio_command(self, ctx, audio_emoji, audio_title, audio_url, skip_seconds=0):
         text_channel = ctx.channel
         if len(ctx.message.mentions) == 1:
             user = ctx.message.mentions[0]
@@ -58,7 +65,7 @@ class AudioPlayer(commands.Cog):
                 success_text = TEXT_SUCCESS_FORMAT.format(audio_emoji, audio_title, voice_channel.name)
                 async with text_channel.typing():
                     await self.disconnect_voice_clients()
-                    await self.play_youtube_audio(voice_channel, text_channel, audio_url, success_text)
+                    await self.play_youtube_audio(audio_url, voice_channel, text_channel, success_text, skip_seconds)
             else:
                 embed = create_basic_embed(f'**{user.mention}** is not currently in a voice channel.', EMOJI_ERROR)
                 await text_channel.send(embed=embed)
@@ -66,12 +73,12 @@ class AudioPlayer(commands.Cog):
             embed = create_basic_embed('Please specify exactly one person to receive the audio.', EMOJI_ERROR)
             await text_channel.send(embed=embed)
 
-    async def play_youtube_audio(self, voice_channel, text_channel, url, success_text):
+    async def play_youtube_audio(self, url, voice_channel, text_channel, success_text, skip_seconds):
         # noinspection PyBroadException
         try:
             loop = self.bot.loop or asyncio.get_event_loop()
             data = await loop.run_in_executor(None, lambda: YoutubeDL(YTDL_OPTIONS).extract_info(url, download=False))
-            audio_source = FFmpegPCMAudio(data['url'])
+            audio_source = FFmpegPCMAudio(data['url'], options=f'-ss {skip_seconds}')
             voice_client = await voice_channel.connect()
             voice_client.play(audio_source)
             await text_channel.send(embed=create_basic_embed(success_text))
