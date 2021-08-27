@@ -16,6 +16,7 @@ bot = commands.Bot(command_prefix=get_prefix, intents=intents)
 
 def initialize_bot(config):
     bot.load_extension('cogs.easter_eggs')
+    bot.load_extension('cogs.error_handler')
     bot.load_extension('cogs.reactions')
 
     if config == CONFIG_LITE:
