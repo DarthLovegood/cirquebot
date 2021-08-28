@@ -1,0 +1,5 @@
+*.db
+*.json
+*.pyc
+.idea/*
+secrets.py
