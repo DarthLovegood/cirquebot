@@ -31,6 +31,13 @@ class AudioPlayer(commands.Cog):
         await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url)
 
     @commands.command()
+    async def bitesthedust(self, ctx):
+        audio_emoji = '🧹'
+        audio_title = 'Another One Bites the Dust'
+        audio_url = 'https://www.youtube.com/watch?v=cGJ_IyFwieY'
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=40)
+
+    @commands.command()
     async def letitgo(self, ctx):
         audio_emoji = '❄'
         audio_title = 'Let It Go'
