@@ -17,6 +17,13 @@ class AudioPlayer(commands.Cog):
         self.bot = bot
 
     @commands.command()
+    async def allstar(self, ctx):
+        audio_emoji = '🌟'
+        audio_title = 'All Star'
+        audio_url = 'https://www.youtube.com/watch?v=5xxQs34UMx4'
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url)
+
+    @commands.command()
     async def babyshark(self, ctx):
         audio_emoji = '🦈'
         audio_title = 'Baby Shark'
