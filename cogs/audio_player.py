@@ -42,7 +42,7 @@ class AudioPlayer(commands.Cog):
         audio_emoji = '🧹'
         audio_title = 'Another One Bites the Dust'
         audio_url = 'https://www.youtube.com/watch?v=cGJ_IyFwieY'
-        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=40)
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=42)
 
     @commands.command()
     async def letitgo(self, ctx):
@@ -63,7 +63,7 @@ class AudioPlayer(commands.Cog):
         audio_emoji = '🕺'
         audio_title = 'Never Gonna Give You Up'
         audio_url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url)
+        await self.handle_audio_command(ctx, audio_emoji, audio_title, audio_url, skip_seconds=43)
 
     @commands.command()
     async def stayinalive(self, ctx):
