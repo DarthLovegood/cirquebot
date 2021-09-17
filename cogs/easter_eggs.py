@@ -1,5 +1,6 @@
 import re
 from PIL import Image
+from cogs.help import Help
 from discord import File
 from discord.ext import commands
 from io import BytesIO
@@ -11,6 +12,7 @@ FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
 
+REGEX_HELP = re.compile(r'^\s*\!cb\s*h[ea]lp\s*$')
 REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
 REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
 
@@ -36,6 +38,8 @@ class EasterEggs(commands.Cog):
     async def on_message(self, message):
         if message.author.id == self.bot.user.id:
             return
+        elif REGEX_HELP.match(message.content):
+            await Help.show_help(self.bot, message)
         elif REGEX_QWEPHESS.match(message.content):
             await EasterEggs.fix_qwephess(message)
         elif REGEX_SPANK_EMOJI.match(message.content):

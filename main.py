@@ -44,6 +44,7 @@ def initialize_bot(config):
 @bot.event
 async def on_ready():
     print(f'Successfully logged in as: {bot.user}')
+    await bot.change_presence(activity=discord.Game(name='!cb help'))
 
 
 if __name__ == '__main__':

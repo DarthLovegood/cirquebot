@@ -19,14 +19,18 @@ class Help(commands.Cog):
 
     @commands.command()
     async def help(self, ctx):
+        await Help.show_help(self.bot, ctx.message)
+
+    @staticmethod
+    async def show_help(bot, message):
         help_cogs = []
-        for cog_name, cog_object in self.bot.cogs.items():
+        for cog_name, cog_object in bot.cogs.items():
             if hasattr(cog_object, 'help') and not callable(getattr(cog_object, 'help')):
                 help_cogs.append((cog_name, cog_object))
         help_cogs.sort()
         help_dict = Help.build_help_dict(help_cogs)
-        prefix = get_prefix(self.bot, ctx.message)
-        await ctx.send(embed=create_help_embed(help_dict, prefix))
+        prefix = get_prefix(bot, message)
+        await message.channel.send(embed=create_help_embed(help_dict, prefix))
 
     @staticmethod
     def build_help_dict(help_cogs: list):
