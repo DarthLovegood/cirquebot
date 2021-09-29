@@ -216,7 +216,7 @@ class Reactions(commands.Cog):
                 # Before adding the role, remove all other role options and reactions available in the message.
                 # Removing the reactions like this will trigger a new REACTION_REMOVE event.
                 for reaction_option in message.reactions:
-                    if reaction_option.emoji != emoji:
+                    if str(reaction_option.emoji) != str(emoji):
                         role_option = Reactions.get_role_from_config(config, reaction_option.emoji, message.guild)
                         if role_option in user.roles:
                             log(f'Removing role "{role_option.name}" from {user.name}#{user.discriminator}.', indent=1)
@@ -415,7 +415,7 @@ class Reactions(commands.Cog):
     @staticmethod
     def get_role_str_from_config(config, emoji):
         for reaction, role in config[KEY_REACTION_ROLE_MENU]:
-            if reaction == emoji:
+            if str(reaction) == str(emoji):
                 return role
 
     @staticmethod
