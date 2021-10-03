@@ -5,6 +5,7 @@ from discord import File
 from discord.ext import commands
 from io import BytesIO
 from lib.embeds import create_basic_embed, EMOJI_ERROR
+from lib.prefixes import *
 
 FILENAME_BONK = 'assets/bonk.png'
 FILENAME_MASK = 'assets/mask.png'
@@ -39,7 +40,8 @@ class EasterEggs(commands.Cog):
         if message.author.id == self.bot.user.id:
             return
         elif REGEX_HELP.match(message.content):
-            await Help.show_help(self.bot, message)
+            if get_prefix(self.bot, message) != DEFAULT_PREFIX:
+                await Help.show_help(self.bot, message)
         elif REGEX_QWEPHESS.match(message.content):
             await EasterEggs.fix_qwephess(message)
         elif REGEX_SPANK_EMOJI.match(message.content):
