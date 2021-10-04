@@ -46,12 +46,6 @@ EMOJI_OPTIONS = {
         [EMOJI_OPTION_CONFIRMATION_NONE, EMOJI_OPTION_CONFIRMATION_PRIVATE, EMOJI_OPTION_CONFIRMATION_PUBLIC]
 }
 
-# These format strings expect the following arguments in order: role_name, emoji, message_link
-TEXT_ALREADY_REACTED_FORMAT = '🤔 \u200B \u200B You already have the **{0}** role. Remove your \u200B {1} ' \
-                              '\u200B reaction from [this message]({2}) if you don\'t want this role.'
-TEXT_ALREADY_UNREACTED_FORMAT = '🤔 \u200B \u200B You don\'t currently have the **{0}** role. Add a \u200B {1} ' \
-                                '\u200B reaction to [this message]({2}) if you would like this role.'
-
 # These format strings expect the following arguments in order: emoji, role_name, message_link
 TEXT_CONFIRMATION_PRIVATE_FORMAT = '{0} \u200B \u200B ' \
                                    'You have gained the **{1}** role by reacting to [this message]({2})!'
@@ -67,6 +61,10 @@ TEXT_CANCELLATIONS_DISABLED_FORMAT = '😢 \u200B \u200B Automatic removal is di
                                      'Please let an admin know if you would like this role to be removed.'
 TEXT_REDUNDANT_REACTION_FORMAT = '🤔 \u200B \u200B You already have the **{0}** role. ' \
                                  'Please let an admin know if you would like this role to be removed.'
+
+# This format string expects the following arguments in order: role_name, emoji, message_link
+TEXT_ALREADY_REACTED_FORMAT = '🤔 \u200B \u200B You already have the **{0}** role. Remove your \u200B {1} ' \
+                              '\u200B reaction from [this message]({2}) if you don\'t want this role.'
 
 # This format string expects the following arguments in order: message_link, role name
 TEXT_ALREADY_SELECTED_FORMAT = '☝️ \u200B \u200B You may only select one role from [this message]({0}), ' \
@@ -87,6 +85,7 @@ TEXT_SESSION_TIMEOUT = 'You\'re too slow! \u200B \u200B 🦥 \u200B Canceled the
 SESSION_TIMEOUT_SECONDS = 180  # 3 minutes
 
 TITLE_CLEANUP = 'Reaction/Role Cleanup'
+BULK_CLEANUP_MESSAGE_LIMIT = 5
 
 REACTION_ADD = 'reaction_add'
 REACTION_REMOVE = 'reaction_remove'
@@ -176,8 +175,7 @@ class Reactions(commands.Cog):
         elif command == 'reset' and len(args) == 1:
             await self.reset(ctx, args[0])
         elif command == 'cleanup' and len(args) == 1:
-            with ctx.typing():
-                await self.cleanup(ctx, args[0])
+            await self.cleanup(ctx, args[0])
         else:
             prefix = get_prefix(self.bot, ctx.message)
             await ctx.send(embed=create_help_embed(self.help, prefix))
@@ -223,7 +221,7 @@ class Reactions(commands.Cog):
         embed = preview_message.embeds[0]
         target_message_link = embed.description[embed.description.index('('):embed.description.index(')')]
         target_message = await fetch_message(preview_message, target_message_link)
-        actual_reactions = await self.get_reactions_for_cleanup(target_message)
+        (actual_reactions, user_ids) = await self.get_reactions_for_cleanup(target_message)
         expected_length = len(actual_reactions)
         preview_emojis = embed.fields[1].value.split('\n')
         preview_mentions = embed.fields[2].value.split('\n')
@@ -235,12 +233,12 @@ class Reactions(commands.Cog):
 
         for i in range(expected_length):
             (reaction, actual_mention, reason) = actual_reactions[i]
-            if (reaction.emoji != preview_emojis[i]) or (actual_mention != preview_mentions[i]):
+            if (str(reaction.emoji) != preview_emojis[i]) or (actual_mention != preview_mentions[i]):
                 await self.handle_reaction_cleanup_error(preview_message, embed)
                 return
 
-        for (reaction, mention, reason) in actual_reactions:
-            user_id = int(mention[2:-1])
+        for (reaction, user_text, reason_text) in actual_reactions:
+            user_id = user_ids[user_text]
             if user_id not in user_cache:
                 user_cache[user_id] = await self.bot.fetch_user(user_id)
             user = user_cache[user_id]
@@ -325,12 +323,8 @@ class Reactions(commands.Cog):
                 else:
                     await Reactions.handle_single_role_addition(user, role, emoji, config)
             elif event_type == REACTION_REMOVE:
-                # This case might be triggered when the bot auto-removes users' reactions in the cases above, so we
-                # should only process the role removal here if the role hasn't already been removed from the user.
-                if (hasattr(user, 'roles')) and (role in user.roles):
-                    await Reactions.handle_single_role_removal(user, role, emoji, config)
-                else:
-                    log(f'{user.name}#{user.discriminator} already doesn\'t have the role "{role.name}".', indent=1)
+                # This case might be triggered when the bot auto-removes reactions in the cases above or during cleanup.
+                await Reactions.handle_single_role_removal(user, role, emoji, config)
             else:
                 # This should never happen, but log it just in case it does.
                 log(f'ERROR: Unexpected event type or message config!')
@@ -365,9 +359,9 @@ class Reactions(commands.Cog):
     # This method assumes that self.role_lock is already held by the caller.
     @staticmethod
     async def handle_single_role_removal(user, role, emoji, config):
-        message_link = config[KEY_MESSAGE_LINK]
-        if role in user.roles:
+        if (hasattr(user, 'roles')) and (role in user.roles):
             if config[KEY_ALLOW_CANCELLATION]:
+                message_link = config[KEY_MESSAGE_LINK]
                 log(f'Removing role "{role.name}" from {user.name}#{user.discriminator}.', indent=1)
                 await user.remove_roles(role)
                 if config[KEY_CONFIRMATION_TYPE] == CONFIRMATION_TYPE_PUBLIC:
@@ -383,8 +377,6 @@ class Reactions(commands.Cog):
                 await user.send(embed=create_basic_embed(TEXT_CANCELLATIONS_DISABLED_FORMAT.format(role.name)))
         else:
             log(f'{user.name}#{user.discriminator} already doesn\'t have the role "{role.name}".', indent=1)
-            await user.send(embed=create_basic_embed(
-                TEXT_ALREADY_UNREACTED_FORMAT.format(role.name, emoji, message_link)))
 
     # This method assumes that self.cache_lock is already held by the caller.
     def has_fresh_data_for_server(self, server_id):
@@ -550,12 +542,17 @@ class Reactions(commands.Cog):
         message = await fetch_message(ctx, message_link)
         if not message:
             await ctx.send(embed=create_basic_embed('I couldn\'t find that message!', EMOJI_ERROR))
-        elif not message.channel.permissions_for(bot_member).add_reactions:
+        elif await Reactions.validate_channel(ctx, message.channel, bot_member):
+            return message
+
+    @staticmethod
+    async def validate_channel(ctx, channel, bot_member):
+        if not channel.permissions_for(bot_member).add_reactions:
             await ctx.send(embed=create_basic_embed("I'm not allowed to add reactions in that channel!", EMOJI_ERROR))
-        elif not message.channel.permissions_for(bot_member).manage_messages:
+        elif not channel.permissions_for(bot_member).manage_messages:
             await ctx.send(embed=create_basic_embed("I'm not allowed to manage messages in that channel!", EMOJI_ERROR))
         else:
-            return message
+            return channel
 
     @staticmethod
     async def ensure_relevant_reactions(message, config):
@@ -641,33 +638,56 @@ class Reactions(commands.Cog):
             await ctx.send(embed=create_basic_embed(embed_msg, embed_emoji))
 
     async def cleanup(self, ctx, message_link):
-        bot_member = ctx.guild.get_member(self.bot.user.id)
-        message = await Reactions.validate_message(ctx, message_link, bot_member)
+        with ctx.typing():
+            bot_member = ctx.guild.get_member(self.bot.user.id)
+            if len(ctx.message.channel_mentions) == 1:
+                channel = ctx.message.channel_mentions[0]
+                if await Reactions.validate_channel(ctx, channel, bot_member):
+                    message_history = await channel.history(limit=BULK_CLEANUP_MESSAGE_LIMIT).flatten()
+                    for message_for_cleanup in reversed(message_history):
+                        await self.cleanup_message(ctx, message_for_cleanup)
+            else:
+                message_for_cleanup = await Reactions.validate_message(ctx, message_link, bot_member)
+                await self.cleanup_message(ctx, message_for_cleanup)
+
+    async def cleanup_message(self, ctx, message):
         if message:
-            link_string = Reactions.get_message_link_string(message.jump_url)
-            description = f'** **\nReact to this message with \u200B {EMOJI_SUCCESS} \u200B to remove the ' \
-                          f'following obsolete and/or mismatched reactions from message **{link_string}**.\n\n' \
-                          f'⚠️ \u200B **WARNING:** \u200B This action is irreversible.'
-            headers = ('Reaction', 'User', 'Reason')
-            rows = await self.get_reactions_for_cleanup(message)
-            embed = create_table_embed(TITLE_CLEANUP, headers, rows, description=description, mark_rows=False)
-            await ctx.send(embed=embed)
+            (rows, unused_ids) = await self.get_reactions_for_cleanup(message)
+            if rows:
+                link_string = Reactions.get_message_link_string(message.jump_url)
+                description = f'** **\nReact to this message with \u200B {EMOJI_SUCCESS} \u200B to remove the ' \
+                              f'following obsolete and/or mismatched reactions from message **{link_string}**.\n\n' \
+                              f'⚠️ \u200B **WARNING:** \u200B This action is irreversible.'
+                headers = ('Reaction', 'User', 'Reason')
+                embed = create_table_embed(TITLE_CLEANUP, headers, rows, description=description, mark_rows=False)
+                await ctx.send(embed=embed)
+            else:
+                message_link_string = Reactions.get_message_link_string(message.jump_url)
+                embed_text = f'Message **{message_link_string}** has no applicable reactions to clean up.'
+                await ctx.send(embed=create_basic_embed(embed_text, EMOJI_WARNING))
 
     async def get_reactions_for_cleanup(self, message):
         reactions_for_cleanup = []
+        user_ids = {}
         config = await self.get_config_for_message(message)
         for reaction in message.reactions:
-            role = Reactions.get_role_from_config(config, reaction.emoji, message.guild)
+            try:
+                role = Reactions.get_role_from_config(config, reaction.emoji, message.guild)
+            except KeyError:
+                return
             users = await reaction.users().flatten()
             for user in users:
                 if not user.bot:
                     if message.guild not in user.mutual_guilds:
-                        reason = f'No longer a member of **{message.guild.name}**.'
-                        reactions_for_cleanup.append((reaction, user.mention, reason))
+                        user_text = f'{user.name}#{user.discriminator}'
+                        reason_text = f'No longer a member of **{message.guild.name}**.'
+                        reactions_for_cleanup.append((reaction, user_text, reason_text))
+                        user_ids[user_text] = user.id
                     elif role not in user.roles:
-                        reason = f'Does not have the {role.mention} role.'
-                        reactions_for_cleanup.append((reaction, user.mention, reason))
-        return reactions_for_cleanup
+                        reason_text = f'Does not have the {role.mention} role.'
+                        reactions_for_cleanup.append((reaction, user.mention, reason_text))
+                        user_ids[user.mention] = user.id
+        return reactions_for_cleanup, user_ids
 
     class RASession(commands.Cog):
         def __init__(self, parent, ctx, config, display_message):
