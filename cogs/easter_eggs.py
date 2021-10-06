@@ -15,6 +15,7 @@ FILENAME_SPANK_2 = 'assets/spank2.png'
 
 REGEX_HELP = re.compile(r'^\s*\!cb\s*h[ea]lp\s*$')
 REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
+REGEX_SNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*sn(ip|pi)e?\s*$', re.IGNORECASE)
 REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
 
 
@@ -44,6 +45,8 @@ class EasterEggs(commands.Cog):
                 await Help.show_help(self.bot, message)
         elif REGEX_QWEPHESS.match(message.content):
             await EasterEggs.fix_qwephess(message)
+        elif REGEX_SNIPE.match(message.content):
+            await self.bot.get_cog('Sniper').snipe(message)
         elif REGEX_SPANK_EMOJI.match(message.content):
             await EasterEggs.handle_spank_command(message, bot=self.bot)
 
