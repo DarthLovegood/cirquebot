@@ -13,6 +13,7 @@ FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
 
+REGEX_ESNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*e(dit)?-?sn(ip|pi)e?\s*$', re.IGNORECASE)
 REGEX_HELP = re.compile(r'^\s*\!cb\s*h[ea]lp\s*$')
 REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
 REGEX_SNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*sn(ip|pi)e?\s*$', re.IGNORECASE)
@@ -40,6 +41,8 @@ class EasterEggs(commands.Cog):
     async def on_message(self, message):
         if message.author.id == self.bot.user.id:
             return
+        elif REGEX_ESNIPE.match(message.content):
+            await self.bot.get_cog('Sniper').editsnipe(message)
         elif REGEX_HELP.match(message.content):
             if get_prefix(self.bot, message) != DEFAULT_PREFIX:
                 await Help.show_help(self.bot, message)

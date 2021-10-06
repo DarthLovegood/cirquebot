@@ -4,12 +4,12 @@ from discord import File
 from discord.ext import commands
 from lib.embeds import create_basic_embed
 
-KEY_DELETED_AT = 'deleted_at'  # type: datetime
+KEY_TIMESTAMP = 'timestamp'  # type: datetime
 KEY_CHANNEL_ID = 'channel_id'  # type: int
 KEY_AUTHOR = 'author'  # type: Member
 KEY_MESSAGE_TEXT = 'message_text'  # type: str
 
-SNIPE_WINDOW = timedelta(seconds=10)
+SNIPE_WINDOW = timedelta(seconds=30)
 
 TEXT_SNIPER_FAIL = '**"SNIPER, NO SNIPING!"**\n*"Oh, mannnn...*"'
 
@@ -18,61 +18,80 @@ class Sniper(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.message_cache = []
-        self.message_cache_lock = Lock()
+        self.deleted_message_cache = []
+        self.edited_message_cache = []
+        self.deleted_message_cache_lock = Lock()
+        self.edited_message_cache_lock = Lock()
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
-        deleted_at = datetime.now(timezone.utc)
         if not message.author.bot:
-            async with self.message_cache_lock:
-                self.message_cache.append({
-                    KEY_DELETED_AT: deleted_at,
-                    KEY_CHANNEL_ID: message.channel.id,
-                    KEY_AUTHOR: message.author,
-                    KEY_MESSAGE_TEXT: message.content
-                })
+            await Sniper.add_to_cache(message, self.deleted_message_cache, self.deleted_message_cache_lock)
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, original_message, edited_message):
+        if (not original_message.author.bot) and (original_message.content != edited_message.content):
+            await Sniper.add_to_cache(original_message, self.edited_message_cache, self.edited_message_cache_lock)
 
     @commands.command()
     async def snipe(self, ctx):
+        await Sniper.attempt_snipe(ctx.channel, self.deleted_message_cache, self.deleted_message_cache_lock)
+
+    @commands.command(aliases=['esnipe'])
+    async def editsnipe(self, ctx):
+        await Sniper.attempt_snipe(ctx.channel, self.edited_message_cache, self.edited_message_cache_lock)
+
+    @staticmethod
+    async def add_to_cache(message, message_cache, message_cache_lock):
+        timestamp = datetime.now(timezone.utc)
+        async with message_cache_lock:
+            message_cache.append({
+                KEY_TIMESTAMP: timestamp,
+                KEY_CHANNEL_ID: message.channel.id,
+                KEY_AUTHOR: message.author,
+                KEY_MESSAGE_TEXT: message.content
+            })
+
+    @staticmethod
+    async def attempt_snipe(channel, message_cache, message_cache_lock):
         sniped_user = None
         sniped_messages = []
         sniped_at = datetime.now(timezone.utc)
         snipe_threshold = sniped_at - SNIPE_WINDOW
 
-        async with self.message_cache_lock:
+        async with message_cache_lock:
             # Remove messages in the cache that were deleted too long ago to be sniped (i.e. outside the snipe window).
-            while self.message_cache and (self.message_cache[0][KEY_DELETED_AT] < snipe_threshold):
-                self.message_cache.pop(0)
+            while message_cache and (message_cache[0][KEY_TIMESTAMP] < snipe_threshold):
+                message_cache.pop(0)
 
             # Identify the first user who deleted their messages in the current channel within the snipe window, and
             # capture ALL deleted messages within the snipe window by that same user in the current channel.
             cache_index = 0
-            while cache_index < len(self.message_cache):
-                cache_entry = self.message_cache[cache_index]
-                if cache_entry[KEY_CHANNEL_ID] == ctx.channel.id:
+            while cache_index < len(message_cache):
+                cache_entry = message_cache[cache_index]
+                if cache_entry[KEY_CHANNEL_ID] == channel.id:
                     if not sniped_user:
                         sniped_user = cache_entry[KEY_AUTHOR]
                     if cache_entry[KEY_AUTHOR].id == sniped_user.id:
                         sniped_messages.append(cache_entry[KEY_MESSAGE_TEXT])
-                        self.message_cache.pop(cache_index)
+                        message_cache.pop(cache_index)
                         continue  # Continue without incrementing the index because we removed the current entry.
                 cache_index += 1
 
-        await Sniper.send_snipe_response(ctx.channel, sniped_user, sniped_messages, sniped_at)
+        await Sniper.send_snipe_response(channel, sniped_user, sniped_messages, sniped_at)
 
     @staticmethod
-    async def send_snipe_response(ctx, user, messages, timestamp):
+    async def send_snipe_response(channel, user, messages, timestamp):
         if user and messages:
             embed = create_basic_embed('\n'.join(messages))
             embed.set_author(name=f'{user.name}#{user.discriminator}', icon_url=user.avatar_url)
             embed.timestamp = timestamp
-            await ctx.send(embed=embed)
+            await channel.send(embed=embed)
         else:
             embed = create_basic_embed(TEXT_SNIPER_FAIL)
             file = File('assets/swiper.png', 'image.png')
             embed.set_thumbnail(url='attachment://image.png')
-            await ctx.send(embed=embed, file=file)
+            await channel.send(embed=embed, file=file)
 
 
 def setup(bot):
