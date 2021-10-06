@@ -6,9 +6,11 @@ from discord.ext import commands
 from io import BytesIO
 from lib.embeds import create_basic_embed, EMOJI_ERROR
 from lib.prefixes import *
+from lib.utils import log
 
 FILENAME_BONK = 'assets/bonk.png'
 FILENAME_MASK = 'assets/mask.png'
+FILENAME_PUSHEEN = 'assets/pusheen.gif'
 FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
@@ -18,6 +20,10 @@ REGEX_HELP = re.compile(r'^\s*\!cb\s*h[ea]lp\s*$')
 REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
 REGEX_SNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*sn(ip|pi)e?\s*$', re.IGNORECASE)
 REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
+
+TEXT_DM_HELP = 'Sorry, my \u200b `help` \u200b command is disabled in DMs!'
+TEXT_DM_RESPONSE = 'Hello, friend! \u200b My name is CirqueBot.\nI don\'t understand what you\'re saying.\nBut thank ' \
+                   'you for sending me a message!\nI hope you have a nice day! \u200b <:hypersLove:740457258395107380>'
 
 
 class EasterEggs(commands.Cog):
@@ -41,6 +47,8 @@ class EasterEggs(commands.Cog):
     async def on_message(self, message):
         if message.author.id == self.bot.user.id:
             return
+        elif not message.guild:
+            await EasterEggs.respond_to_dm(message)
         elif REGEX_ESNIPE.match(message.content):
             await self.bot.get_cog('Sniper').editsnipe(message)
         elif REGEX_HELP.match(message.content):
@@ -52,6 +60,20 @@ class EasterEggs(commands.Cog):
             await self.bot.get_cog('Sniper').snipe(message)
         elif REGEX_SPANK_EMOJI.match(message.content):
             await EasterEggs.handle_spank_command(message, bot=self.bot)
+
+    @staticmethod
+    async def respond_to_dm(message):
+        log(f'Received a DM from {message.author.name}#{message.author.discriminator}:')
+        for line in message.content.split('\n'):
+            log(line, indent=1)
+
+        if REGEX_HELP.match(message.content):
+            await message.channel.send(embed=create_basic_embed(TEXT_DM_HELP, EMOJI_ERROR))
+        else:
+            embed = create_basic_embed(TEXT_DM_RESPONSE)
+            file = File(FILENAME_PUSHEEN, 'image.gif')
+            embed.set_image(url='attachment://image.gif')
+            await message.channel.send(embed=embed, file=file)
 
     @staticmethod
     async def fix_qwephess(message):

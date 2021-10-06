@@ -19,7 +19,8 @@ class Help(commands.Cog):
 
     @commands.command()
     async def help(self, ctx):
-        await Help.show_help(self.bot, ctx.message)
+        if ctx.guild:
+            await Help.show_help(self.bot, ctx.message)
 
     @staticmethod
     async def show_help(bot, message):
