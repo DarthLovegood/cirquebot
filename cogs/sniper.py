@@ -31,8 +31,11 @@ class Sniper(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(self, original_message, edited_message):
-        if (not original_message.author.bot) and (original_message.content != edited_message.content):
-            await Sniper.add_to_cache(original_message, self.edited_message_cache, self.edited_message_cache_lock)
+        changed_content = original_message.content != edited_message.content
+        removed_attachments = [a for a in original_message.attachments if a not in edited_message.attachments]
+        if (not original_message.author.bot) and (changed_content or removed_attachments):
+            await Sniper.add_to_cache(
+                original_message, self.edited_message_cache, self.edited_message_cache_lock, removed_attachments)
 
     @commands.command()
     async def snipe(self, ctx):
@@ -43,7 +46,7 @@ class Sniper(commands.Cog):
         await Sniper.attempt_snipe(ctx.channel, self.edited_message_cache, self.edited_message_cache_lock)
 
     @staticmethod
-    async def add_to_cache(message, message_cache, message_cache_lock):
+    async def add_to_cache(message, message_cache, message_cache_lock, removed_attachments=[]):
         timestamp = datetime.now(timezone.utc)
         async with message_cache_lock:
             message_cache.append({
@@ -51,7 +54,7 @@ class Sniper(commands.Cog):
                 KEY_CHANNEL_ID: message.channel.id,
                 KEY_AUTHOR: message.author,
                 KEY_MESSAGE_TEXT: message.content,
-                KEY_ATTACHMENTS: message.attachments
+                KEY_ATTACHMENTS: removed_attachments if removed_attachments else message.attachments
             })
 
     @staticmethod
@@ -121,6 +124,10 @@ class Sniper(commands.Cog):
                     except HTTPException:
                         embed = create_authored_embed(user, timestamp, f'**{attachment.proxy_url}**')
                         await channel.send(embed=embed)
+
+    @staticmethod
+    def are_attachments_different(original_message, edited_message):
+        pass
 
     @staticmethod
     def is_image(attachment):
