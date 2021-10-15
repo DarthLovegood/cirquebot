@@ -1,8 +1,8 @@
 from asyncio import Lock
 from datetime import datetime, timedelta, timezone
-from discord import File
+from discord import File, HTTPException
 from discord.ext import commands
-from lib.embeds import create_basic_embed
+from lib.embeds import create_authored_embed, create_basic_embed
 
 KEY_TIMESTAMP = 'timestamp'  # type: datetime
 KEY_CHANNEL_ID = 'channel_id'  # type: int
@@ -86,18 +86,45 @@ class Sniper(commands.Cog):
 
     @staticmethod
     async def send_snipe_response(channel, user, messages, attachments, timestamp):
-        if user and messages:
-            embed = create_basic_embed('\n'.join(messages))
-            embed.set_author(name=f'{user.name}#{user.discriminator}', icon_url=user.avatar_url)
-            embed.timestamp = timestamp
-            if (len(attachments) == 1) and ('image' in attachments[0].content_type):
-                embed.set_image(url=attachments[0].url)
-            await channel.send(embed=embed)
-        else:
+        if (not user) or (not messages):
             embed = create_basic_embed(TEXT_SNIPER_FAIL)
             file = File('assets/swiper.png', 'image.png')
             embed.set_thumbnail(url='attachment://image.png')
             await channel.send(embed=embed, file=file)
+            return
+
+        embed = create_authored_embed(user, timestamp, '\n'.join(messages))
+
+        if attachments and Sniper.is_image(attachments[0]):
+            embed.set_image(url=attachments[0].url)
+            attachments.pop(0)
+
+        if not attachments:
+            await channel.send(embed=embed)
+            return
+
+        if (not embed.description) and any(not Sniper.is_image(attachment) for attachment in attachments):
+            embed.description = '*Sent a file!*' if len(attachments) == 1 else '*Sent some files!*'
+
+        await channel.send(embed=embed)
+
+        for attachment in attachments:
+            if Sniper.is_image(attachment):
+                embed = create_authored_embed(user, timestamp)
+                embed.set_image(url=attachment.url)
+                await channel.send(embed=embed)
+            else:
+                async with channel.typing():
+                    try:
+                        file = await attachment.to_file(use_cached=True)
+                        await channel.send(file=file)
+                    except HTTPException:
+                        embed = create_authored_embed(user, timestamp, f'**{attachment.proxy_url}**')
+                        await channel.send(embed=embed)
+
+    @staticmethod
+    def is_image(attachment):
+        return 'image' in attachment.content_type
 
 
 def setup(bot):
