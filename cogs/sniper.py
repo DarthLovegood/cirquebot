@@ -96,26 +96,27 @@ class Sniper(commands.Cog):
             await channel.send(embed=embed, file=file)
             return
 
-        embed = create_authored_embed(user, timestamp, '\n'.join(messages))
+        embed = create_authored_embed(user, timestamp, '\n'.join(messages).strip())
+        file = None
 
         if attachments and Sniper.is_image(attachments[0]):
-            embed.set_image(url=attachments[0].url)
+            file = await Sniper.attach_image_file(channel, embed, attachments[0])
             attachments.pop(0)
 
         if not attachments:
-            await channel.send(embed=embed)
+            await channel.send(embed=embed, file=file)
             return
 
         if (not embed.description) and any(not Sniper.is_image(attachment) for attachment in attachments):
             embed.description = '*Sent a file!*' if len(attachments) == 1 else '*Sent some files!*'
 
-        await channel.send(embed=embed)
+        await channel.send(embed=embed, file=file)
 
         for attachment in attachments:
             if Sniper.is_image(attachment):
                 embed = create_authored_embed(user, timestamp)
-                embed.set_image(url=attachment.url)
-                await channel.send(embed=embed)
+                file = await Sniper.attach_image_file(channel, embed, attachment)
+                await channel.send(embed=embed, file=file)
             else:
                 async with channel.typing():
                     try:
@@ -126,8 +127,11 @@ class Sniper(commands.Cog):
                         await channel.send(embed=embed)
 
     @staticmethod
-    def are_attachments_different(original_message, edited_message):
-        pass
+    async def attach_image_file(channel, embed, attachment):
+        async with channel.typing():
+            file = await attachment.to_file(use_cached=True)
+            embed.set_image(url=f'attachment://{file.filename}')
+        return file
 
     @staticmethod
     def is_image(attachment):
