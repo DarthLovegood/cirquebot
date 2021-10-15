@@ -1,4 +1,5 @@
-import discord
+from datetime import datetime
+from discord import Embed, User
 from lib.prefixes import DEFAULT_PREFIX
 
 COLOR_DEFAULT = 0x9B59B6
@@ -22,10 +23,22 @@ KEY_EMOJI = 'emoji'
 KEY_EXAMPLE = 'example'
 
 
+def create_authored_embed(user: User, timestamp: datetime, description: str = ''):
+    embed = Embed(timestamp=timestamp, description=description, color=COLOR_DEFAULT)
+    embed.set_author(name=f'{user.name}#{user.discriminator}', icon_url=user.avatar_url)
+    return embed
+
+
 def create_basic_embed(description: str, emoji: str = None):
     if emoji:
         description = FORMAT_EMOJI_TEXT.format(emoji, description)
-    return discord.Embed(description=description, color=COLOR_DEFAULT)
+    return Embed(description=description, color=COLOR_DEFAULT)
+
+
+def create_event_embed(event: dict):
+    # TODO: Implement!
+    print(str(event))
+    pass
 
 
 def create_help_embed(help_dict: dict, prefix: str = None):
@@ -33,7 +46,7 @@ def create_help_embed(help_dict: dict, prefix: str = None):
         help_dict = replace_default_prefix(help_dict, prefix)
 
     title = FORMAT_HELP_TITLE.format(help_dict[KEY_COMMAND])
-    embed = discord.Embed(title=title, description=help_dict[KEY_DESCRIPTION], color=COLOR_DEFAULT)
+    embed = Embed(title=title, description=help_dict[KEY_DESCRIPTION], color=COLOR_DEFAULT)
 
     for command in help_dict[KEY_SUBCOMMANDS]:
         emoji = command[KEY_EMOJI]
@@ -44,21 +57,8 @@ def create_help_embed(help_dict: dict, prefix: str = None):
     return embed
 
 
-def replace_default_prefix(old_dict: dict, custom_prefix: str):
-    new_dict = {}
-    for key, value in old_dict.items():
-        if isinstance(value, dict):
-            value = replace_default_prefix(value, custom_prefix)
-        elif isinstance(value, list):
-            value = [replace_default_prefix(item, custom_prefix) for item in value]  # This assumes all items are dicts.
-        elif isinstance(value, str):
-            value = value.replace(DEFAULT_PREFIX, custom_prefix)
-        new_dict[key] = value
-    return new_dict
-
-
 def create_table_embed(title: str, headers: tuple, rows: list, description: str = None, mark_rows: bool = True):
-    embed = discord.Embed(title=title, description=description, color=COLOR_DEFAULT)
+    embed = Embed(title=title, description=description, color=COLOR_DEFAULT)
     num_fields = len(headers)
     field_values = ['' for i in range(num_fields)]
 
@@ -86,7 +86,14 @@ def create_table_embed(title: str, headers: tuple, rows: list, description: str 
     return embed
 
 
-def create_event_embed(event: dict):
-    # TODO: Implement!
-    print(str(event))
-    pass
+def replace_default_prefix(old_dict: dict, custom_prefix: str):
+    new_dict = {}
+    for key, value in old_dict.items():
+        if isinstance(value, dict):
+            value = replace_default_prefix(value, custom_prefix)
+        elif isinstance(value, list):
+            value = [replace_default_prefix(item, custom_prefix) for item in value]  # This assumes all items are dicts.
+        elif isinstance(value, str):
+            value = value.replace(DEFAULT_PREFIX, custom_prefix)
+        new_dict[key] = value
+    return new_dict

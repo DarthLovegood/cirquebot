@@ -1,4 +1,3 @@
-import re
 from PIL import Image
 from cogs.help import Help
 from discord import File
@@ -7,6 +6,7 @@ from io import BytesIO
 from lib.embeds import create_basic_embed, EMOJI_ERROR
 from lib.prefixes import *
 from lib.utils import log
+from re import compile, split, IGNORECASE
 
 FILENAME_BONK = 'assets/bonk.png'
 FILENAME_MASK = 'assets/mask.png'
@@ -15,11 +15,11 @@ FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
 
-REGEX_ESNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*e(dit)?-?sn(ip|pi)e?\s*$', re.IGNORECASE)
-REGEX_HELP = re.compile(r'^\s*\!cb\s*h[ea]lp\s*$')
-REGEX_QWEPHESS = re.compile(r'^(.*?(\bkephess\b)[^$]*)$', re.IGNORECASE)
-REGEX_SNIPE = re.compile(r'^\s*ple*a*(s|z)+e?\s*sn(ip|pi)e?\s*$', re.IGNORECASE)
-REGEX_SPANK_EMOJI = re.compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', re.IGNORECASE)
+REGEX_ESNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*e(dit)?-?sne?(ip|pi)e?\\?\s*$', IGNORECASE)
+REGEX_HELP = compile(r'^\s*\!cb\s*h[ea]lp\s*$', IGNORECASE)
+REGEX_QWEPHESS = compile(r'^(.*?(\bkephess\b)[^$]*)$', IGNORECASE)
+REGEX_SNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*sne?(ip|pi)e?\\?\s*$', IGNORECASE)
+REGEX_SPANK_EMOJI = compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', IGNORECASE)
 
 TEXT_DM_HELP = 'Sorry, my \u200b `help` \u200b command is disabled in DMs!'
 TEXT_DM_RESPONSE = 'Hello, friend! \u200b My name is CirqueBot.\nI don\'t understand what you\'re saying.\nBut thank ' \
@@ -77,7 +77,7 @@ class EasterEggs(commands.Cog):
 
     @staticmethod
     async def fix_qwephess(message):
-        message_blocks = re.split("kephess", message.content, flags=re.IGNORECASE)
+        message_blocks = split("kephess", message.content, flags=IGNORECASE)
         kephess_index = message.content.lower().find("kephess")
         kephess_string = message.content[kephess_index:(kephess_index + len("kephess"))]
         qw = "Qw" if kephess_string[0].isupper() else "qw"
