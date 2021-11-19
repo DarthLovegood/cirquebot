@@ -15,10 +15,10 @@ FILENAME_SUNDER = 'assets/sunder.png'
 FILENAME_SPANK_1 = 'assets/spank1.png'
 FILENAME_SPANK_2 = 'assets/spank2.png'
 
-REGEX_ESNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*e(dit)?-?sne?(ip|pi)e?\\?\s*$', IGNORECASE)
+REGEX_ESNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*e(dit)?-?(sn|ns)e?(ip|pi)e?\\?\s*$', IGNORECASE)
 REGEX_HELP = compile(r'^\s*\!cb\s*h[ea]lp\s*$', IGNORECASE)
 REGEX_QWEPHESS = compile(r'^(.*?(\bkephess\b)[^$]*)$', IGNORECASE)
-REGEX_SNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*sne?(ip|pi)e?\\?\s*$', IGNORECASE)
+REGEX_SNIPE = compile(r'^\s*ple*a*(s|z)+e?\s*(sn|ns)e?(ip|pi)e?\\?\s*$', IGNORECASE)
 REGEX_SPANK_EMOJI = compile(r'^\s*(<:spank[a-z]*:740455662856831007>\s*)+$', IGNORECASE)
 
 TEXT_DM_HELP = 'Sorry, my \u200b `help` \u200b command is disabled in DMs!'
