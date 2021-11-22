@@ -19,10 +19,17 @@ class Sniper(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.reaction_cache = []
         self.deleted_message_cache = []
         self.edited_message_cache = []
         self.deleted_message_cache_lock = Lock()
         self.edited_message_cache_lock = Lock()
+        self.reaction_cache_lock = Lock()
+
+    @commands.Cog.listener()
+    async def on_reaction_remove(self, reaction, user):
+        if not user.bot:
+            await Sniper.add_to_react_cache(reaction, user, self.reaction_cache, self.reaction_cache_lock)
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -44,6 +51,22 @@ class Sniper(commands.Cog):
     @commands.command(aliases=['esnipe'])
     async def editsnipe(self, ctx):
         await Sniper.attempt_snipe(ctx.channel, self.edited_message_cache, self.edited_message_cache_lock)
+
+    @commands.command(aliases=['rsnipe'])
+    async def reactsnipe(self, ctx):
+        await Sniper.attempt_snipe(ctx.channel, self.reaction_cache, self.reaction_cache_lock)
+
+    @staticmethod
+    async def add_to_react_cache(reaction, user, reaction_cache, reaction_cache_lock):
+        timestamp = datetime.now(timezone.utc)
+        async with reaction_cache_lock:
+            reaction_cache.append({
+                KEY_TIMESTAMP: timestamp,
+                KEY_CHANNEL_ID: reaction.message.channel.id,
+                KEY_AUTHOR: user,
+                KEY_MESSAGE_TEXT: '> ' + reaction.message.content + "\n\n" + str(reaction.emoji),
+                KEY_ATTACHMENTS: [],
+            })
 
     @staticmethod
     async def add_to_cache(message, message_cache, message_cache_lock, removed_attachments=[]):
