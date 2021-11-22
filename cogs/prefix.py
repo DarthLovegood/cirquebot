@@ -1,4 +1,5 @@
 import json
+import os.path
 from discord.ext import commands
 from lib.embeds import *
 from lib.prefixes import *
@@ -61,8 +62,11 @@ class Prefix(commands.Cog):
 
     @staticmethod
     async def set_prefix(ctx, new_prefix):
-        with open(PREFIXES_PATH, 'r') as file:
-            prefixes = json.load(file)
+        prefixes = {}
+
+        if os.path.isfile(PREFIXES_PATH):
+            with open(PREFIXES_PATH, 'r') as file:
+                prefixes = json.load(file)
 
         server_id = str(ctx.guild.id)
         if (new_prefix == DEFAULT_PREFIX) and (server_id in prefixes):
@@ -70,7 +74,7 @@ class Prefix(commands.Cog):
         else:
             prefixes[server_id] = new_prefix
 
-        with open(PREFIXES_PATH, 'w') as file:
+        with open(PREFIXES_PATH, 'w+') as file:
             json.dump(prefixes, file, indent=4)
 
         embed_text = TEXT_UPDATED_FORMAT.format(ctx.guild.name, new_prefix)
