@@ -1,6 +1,19 @@
 CirqueBot
 =========
 
+Bot Prefix
+----------
+
+The prefix used in the Dev & Clowns server is "!". The default prefix when you run the bot is `!cb ` to avoid conflicts with other bots.
+
+To change the prefix, use the following command:
+
+```
+!cb pf set "!"
+```
+
+Otherwise, commands like `!bonk` should be `!cb bonk` when testing.
+
 Creating Bot Tokens
 -------------------
 

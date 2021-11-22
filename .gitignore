@@ -3,3 +3,4 @@
 *.pyc
 .idea/*
 secrets.py
+data/prefixes.json
