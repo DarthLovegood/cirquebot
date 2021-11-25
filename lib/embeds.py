@@ -1,5 +1,5 @@
 from datetime import datetime
-from discord import Embed, User
+from discord import Asset, Embed, User
 from lib.prefixes import DEFAULT_PREFIX
 
 COLOR_DEFAULT = 0x9B59B6
@@ -54,6 +54,12 @@ def create_help_embed(help_dict: dict, prefix: str = None):
         description = f'{command[KEY_DESCRIPTION]}\n**Example:** `{command[KEY_EXAMPLE]}`'
         embed.add_field(name=title, value=description, inline=False)
 
+    return embed
+
+
+def create_icon_embed(icon_url: Asset, title: str, description: str = ''):
+    embed = Embed(description=description, color=COLOR_DEFAULT)
+    embed.set_author(name=title, icon_url=icon_url)
     return embed
 
 
