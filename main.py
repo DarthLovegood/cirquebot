@@ -36,7 +36,7 @@ def initialize_bot(config):
     # Extensions that should only be loaded for DEV configuration.
     bot.load_extension('cogs.clownquest')
     bot.load_extension('cogs.events')
-    bot.load_extension('cogs.welcome')
+    bot.load_extension('cogs.greetings')
 
     return BOT_TOKEN_DEV
 
