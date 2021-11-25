@@ -26,6 +26,7 @@ def initialize_bot(config):
     # Extensions that should only be loaded for PROD and DEV configurations.
     bot.load_extension('cogs.audio_player')
     bot.load_extension('cogs.easter_eggs')
+    bot.load_extension('cogs.greetings')
     bot.load_extension('cogs.nicknames')
     bot.load_extension('cogs.rewrite')
     bot.load_extension('cogs.sniper')
@@ -36,7 +37,6 @@ def initialize_bot(config):
     # Extensions that should only be loaded for DEV configuration.
     bot.load_extension('cogs.clownquest')
     bot.load_extension('cogs.events')
-    bot.load_extension('cogs.greetings')
 
     return BOT_TOKEN_DEV
 

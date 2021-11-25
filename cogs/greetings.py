@@ -1,9 +1,10 @@
 from aiosqlite import connect
-from asyncio import sleep
+from asyncio import sleep, TimeoutError
 from discord.ext import commands
 from lib.embeds import *
 from lib.prefixes import get_prefix
 from lib.utils import log
+from re import sub
 
 KEY_PUBLIC_CHANNEL_ID = 'public_channel_id'
 KEY_PUBLIC_MESSAGE = 'public_message'
@@ -23,14 +24,40 @@ TEXT_GREETING_NONE = '**{0}** is not currently configured to send any greetings.
 
 USER_STRING = '<user>'
 SERVER_STRING = '<server>'
+CLEAR_STRING = '<clear>'
 
 DELAY_SECONDS = 1  # How many seconds to wait after a user joins the server before sending the greeting message(s).
+TIMEOUT_SECONDS = 180  # How many seconds to wait for a reaction/message before canceling the configuration session.
 
 BLANK_CONFIG = {
     KEY_PUBLIC_CHANNEL_ID: 0,
     KEY_PUBLIC_MESSAGE: '',
     KEY_PRIVATE_MESSAGE: ''
 }
+
+CONFIG_MENU_EMOJI = [EMOJI_PUBLIC_CHANNEL, EMOJI_PUBLIC_MESSAGE, EMOJI_PRIVATE_MESSAGE, EMOJI_SUCCESS, EMOJI_ERROR]
+
+CONFIG_MENU_TEXT = '\n\n**Configuration in progress! Please react with one of the following emoji:**' \
+                   f'\n \u200B \u200B \u200B {EMOJI_PUBLIC_CHANNEL} = Edit public greeting channel' \
+                   f'\n \u200B \u200B \u200B {EMOJI_PUBLIC_MESSAGE} = Edit public greeting message' \
+                   f'\n \u200B \u200B \u200B {EMOJI_PRIVATE_MESSAGE} = Edit private greeting message' \
+                   f'\n \u200B \u200B \u200B {EMOJI_SUCCESS} = Save and activate the current configuration' \
+                   f'\n \u200B \u200B \u200B {EMOJI_ERROR} = Scrap the current session and discard all changes'
+
+CONFIG_MESSAGE_TIPS = '\n\n**Some helpful tips:**' \
+                      f'\n \u200B - You may use `{USER_STRING}` in your message to mention/ping the new member.' \
+                      f'\n \u200B - You may use `{SERVER_STRING}` in your message to display this server\'s name.' \
+                      f'\n \u200B - You may use Markdown formatting (e.g. `**bold text**`) in your message.' \
+                      f'\n \u200B - You may type `{CLEAR_STRING}` to remove an existing greeting message.' \
+                      '\n\n**Example:** \u200B `Hello <user>! Welcome to **<server>**! 😄`' \
+                      '\n\nPlease type out and send your desired greeting message now.'
+
+CONFIG_PROMPT_PUBLIC = '**What should I say in my public greeting message to new members?**' + CONFIG_MESSAGE_TIPS
+CONFIG_PROMPT_PRIVATE = '**What should I say in my private greeting DM to new members?**' + CONFIG_MESSAGE_TIPS
+CONFIG_PROMPT_CHANNEL = '**Which channel should be used for public greetings in this server?**' \
+                        '\n\n**Example:** \u200B {0}\n\nPlease tag your desired channel now.'  # arg: channel_mention
+
+CONFIG_TIMEOUT_TEXT = 'You\'re too slow! \u200B \u200B 🦥 \u200B Canceled the config session and reverted any changes.'
 
 
 class Greetings(commands.Cog):
@@ -123,9 +150,10 @@ class Greetings(commands.Cog):
 
     async def config(self, ctx):
         config = await self.get_config_for_server(ctx.guild)
-        embed = Greetings.get_display_embed(self.bot, ctx.guild, config)
-        await ctx.send(embed=embed)
-        # TODO: Implement sessions to allow changing the server's configuration.
+        display_message = await ctx.send(embed=Greetings.get_display_embed(self.bot, ctx.guild, config))
+        session_cog = Greetings.GTSession(self, ctx, config, display_message)
+        self.bot.add_cog(session_cog)
+        await session_cog.show_menu()
 
     async def demo(self, ctx):
         config = await self.get_config_for_server(ctx.guild)
@@ -248,6 +276,125 @@ class Greetings(commands.Cog):
 
         description = TEXT_GREETING_SUMMARY.format(public_greeting_status, private_greeting_status) + description
         return create_icon_embed(server.icon_url, title, description)
+
+    class GTSession(commands.Cog):
+        def __init__(self, parent, ctx, config, display_message):
+            self.parent = parent
+            self.bot = parent.bot
+            self.owner = ctx.author
+            self.channel = ctx.channel
+            self.server = ctx.guild
+            self.config = config.copy()
+            self.display_message = display_message
+            self.messages_to_delete = set()
+
+        def check_message(self, message):
+            return (message.author.id == self.owner.id) and (message.channel.id == self.channel.id)
+
+        def check_reaction(self, reaction, user):
+            return (user.id == self.owner.id) and (str(reaction.emoji) in CONFIG_MENU_EMOJI)
+
+        async def prompt_for_message(self, prompt_text, prompt_emoji, callback):
+            prompt_message = await self.channel.send(embed=create_basic_embed(prompt_text, prompt_emoji))
+            try:
+                user_message = \
+                    await self.bot.wait_for('message', timeout=TIMEOUT_SECONDS, check=self.check_message)
+            except TimeoutError:
+                self.messages_to_delete.update({prompt_message})
+                await self.finish(create_basic_embed(CONFIG_TIMEOUT_TEXT, EMOJI_ERROR))
+            else:
+                await prompt_message.delete()
+                await callback(user_message)
+
+        async def show_menu(self):
+            menu_message = await self.channel.send(embed=create_basic_embed(CONFIG_MENU_TEXT))
+            for emoji in CONFIG_MENU_EMOJI:
+                await menu_message.add_reaction(emoji)
+            try:
+                reaction, unused_user = \
+                    await self.bot.wait_for('reaction_add', timeout=TIMEOUT_SECONDS, check=self.check_reaction)
+            except TimeoutError:
+                self.messages_to_delete.update({menu_message})
+                await self.finish(create_basic_embed(CONFIG_TIMEOUT_TEXT, EMOJI_ERROR))
+            else:
+                await menu_message.delete()
+                await self.handle_menu_option(str(reaction))
+
+        async def handle_menu_option(self, emoji):
+            if emoji == EMOJI_PUBLIC_CHANNEL:
+                prompt_text = CONFIG_PROMPT_CHANNEL.format(self.channel.mention)
+                await self.prompt_for_message(prompt_text, emoji, self.handle_public_channel_change)
+            elif emoji == EMOJI_PUBLIC_MESSAGE:
+                await self.prompt_for_message(CONFIG_PROMPT_PUBLIC, emoji, self.handle_public_message_change)
+            elif emoji == EMOJI_PRIVATE_MESSAGE:
+                await self.prompt_for_message(CONFIG_PROMPT_PRIVATE, emoji, self.handle_private_message_change)
+            elif emoji == EMOJI_SUCCESS:
+                await self.save_config_changes()
+            elif emoji == EMOJI_ERROR:
+                embed_text = 'Canceled the greeting configuration session and reverted any changes.'
+                await self.finish(create_basic_embed(embed_text, emoji))
+
+        async def handle_public_channel_change(self, user_message):
+            if len(user_message.channel_mentions) == 1:
+                public_channel = user_message.channel_mentions[0]
+                bot_member = self.server.get_member(self.bot.user.id)
+                if public_channel.permissions_for(bot_member).send_messages:
+                    self.config[KEY_PUBLIC_CHANNEL_ID] = public_channel.id
+                    display_embed = Greetings.get_display_embed(self.bot, self.server, self.config)
+                    await self.display_message.edit(embed=display_embed)
+                    success_embed_text = f'Public greeting messages will now be sent to {public_channel.mention}.'
+                    await self.channel.send(embed=create_basic_embed(success_embed_text, EMOJI_SUCCESS))
+                else:
+                    embed_text = f'I don\'t have permission to post in {public_channel.mention}. No changes made.'
+                    cancellation_message = await self.channel.send(embed=create_basic_embed(embed_text, EMOJI_ERROR))
+                    self.messages_to_delete.update({cancellation_message})
+            else:
+                embed_text = f'**"{user_message.content}"** did not specify exactly one channel. No changes made.'
+                cancellation_message = await self.channel.send(embed=create_basic_embed(embed_text, EMOJI_ERROR))
+                self.messages_to_delete.update({cancellation_message})
+            await user_message.delete()
+            await self.show_menu()
+
+        async def handle_public_message_change(self, user_message):
+            await self.handle_message_change(user_message, KEY_PUBLIC_MESSAGE, 'public')
+
+        async def handle_private_message_change(self, user_message):
+            await self.handle_message_change(user_message, KEY_PRIVATE_MESSAGE, 'private')
+
+        async def handle_message_change(self, user_message, config_key, identifier_string):
+            original_message_text = user_message.content
+            unformatted_message_text = sub('[*_~`|]', '', original_message_text).strip()
+            if unformatted_message_text:
+                # The user's message is guaranteed to contain something that isn't whitespace or formatting characters.
+                if unformatted_message_text != CLEAR_STRING:
+                    self.config[config_key] = sub('```', '', original_message_text).strip()
+                    success_embed_text = f'The {identifier_string} greeting message has been updated!'
+                else:
+                    self.config[config_key] = BLANK_CONFIG[config_key]
+                    success_embed_text = f'The {identifier_string} greeting message has been removed.'
+                display_embed = Greetings.get_display_embed(self.bot, self.server, self.config)
+                await self.display_message.edit(embed=display_embed)
+                await self.channel.send(embed=create_basic_embed(success_embed_text, EMOJI_SUCCESS))
+            else:
+                embed_text = f'Invalid message content: `{original_message_text}`. No changes made.'
+                cancellation_message = await self.channel.send(embed=create_basic_embed(embed_text, EMOJI_ERROR))
+                self.messages_to_delete.update({cancellation_message})
+            await user_message.delete()
+            await self.show_menu()
+
+        async def save_config_changes(self):
+            existing_config = await self.parent.get_config_for_server(self.server)
+            if list(existing_config.values()) == list(self.config.values()):
+                embed = create_basic_embed('Config session ended. You didn\'t make any changes!', '🤨')
+            else:
+                await self.parent.save_config_for_server(self.server, self.config)
+                embed = create_basic_embed('Your config changes have been saved and are now live!', '🥳')
+            await self.finish(embed)
+
+        async def finish(self, embed):
+            await self.channel.delete_messages(self.messages_to_delete)
+            await self.channel.send(embed=embed)
+            self.bot.remove_cog('GTSession')
 
 
 def setup(bot):
