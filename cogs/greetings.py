@@ -1,5 +1,5 @@
 from aiosqlite import connect
-from asyncio import sleep, TimeoutError
+from asyncio import Lock, TimeoutError, sleep
 from discord.ext import commands
 from lib.embeds import *
 from lib.prefixes import get_prefix
@@ -91,6 +91,8 @@ class Greetings(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.cache = {}
+        self.cache_lock = Lock()
         self.bot.loop.create_task(self.initialize_database())
 
     async def initialize_database(self):
@@ -197,46 +199,54 @@ class Greetings(commands.Cog):
 
     # Always returns a valid (but maybe blank) config.
     async def get_config_for_server(self, server):
-        config = BLANK_CONFIG.copy()
-        async with connect(self.db) as connection:
-            async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
-                row = await cursor.fetchone()
-                if row:
-                    config[KEY_PUBLIC_CHANNEL_ID] = row[1]
-                    config[KEY_PUBLIC_MESSAGE] = row[2]
-                    config[KEY_PRIVATE_MESSAGE] = row[3]
-        return config
+        async with self.cache_lock:
+            if server.id in self.cache:
+                return self.cache[server.id]
+            config = BLANK_CONFIG.copy()
+            async with connect(self.db) as connection:
+                async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        config[KEY_PUBLIC_CHANNEL_ID] = row[1]
+                        config[KEY_PUBLIC_MESSAGE] = row[2]
+                        config[KEY_PRIVATE_MESSAGE] = row[3]
+            self.cache[server.id] = config
+            return config
 
     async def save_config_for_server(self, server, config):
-        async with connect(self.db) as connection:
-            async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
-                if await cursor.fetchone():
-                    await cursor.execute('UPDATE greetings '
-                                         'SET public_channel_id=?,'
-                                         '    public_message=?,'
-                                         '    private_message=? '
-                                         'WHERE server_id=?',
-                                         (config[KEY_PUBLIC_CHANNEL_ID],
-                                          config[KEY_PUBLIC_MESSAGE],
-                                          config[KEY_PRIVATE_MESSAGE],
-                                          server.id))
-                else:
-                    await cursor.execute('INSERT INTO greetings VALUES (?, ?, ?, ?)',
-                                         (server.id,
-                                          config[KEY_PUBLIC_CHANNEL_ID],
-                                          config[KEY_PUBLIC_MESSAGE],
-                                          config[KEY_PRIVATE_MESSAGE]))
-            await connection.commit()
+        async with self.cache_lock:
+            self.cache[server.id] = config
+            async with connect(self.db) as connection:
+                async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
+                    if await cursor.fetchone():
+                        await cursor.execute('UPDATE greetings '
+                                             'SET public_channel_id=?,'
+                                             '    public_message=?,'
+                                             '    private_message=? '
+                                             'WHERE server_id=?',
+                                             (config[KEY_PUBLIC_CHANNEL_ID],
+                                              config[KEY_PUBLIC_MESSAGE],
+                                              config[KEY_PRIVATE_MESSAGE],
+                                              server.id))
+                    else:
+                        await cursor.execute('INSERT INTO greetings VALUES (?, ?, ?, ?)',
+                                             (server.id,
+                                              config[KEY_PUBLIC_CHANNEL_ID],
+                                              config[KEY_PUBLIC_MESSAGE],
+                                              config[KEY_PRIVATE_MESSAGE]))
+                await connection.commit()
 
     async def delete_config_for_server(self, server):
-        config_deleted = False
-        async with connect(self.db) as connection:
-            async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
-                if await cursor.fetchone():
-                    await cursor.execute('DELETE FROM greetings WHERE server_id=?', (server.id,))
-                    config_deleted = True
-            await connection.commit()
-        return config_deleted
+        async with self.cache_lock:
+            self.cache.pop(server.id, None)
+            config_deleted = False
+            async with connect(self.db) as connection:
+                async with connection.execute('SELECT * FROM greetings WHERE server_id=?', (server.id,)) as cursor:
+                    if await cursor.fetchone():
+                        await cursor.execute('DELETE FROM greetings WHERE server_id=?', (server.id,))
+                        config_deleted = True
+                await connection.commit()
+            return config_deleted
 
     @staticmethod
     def format_greeting_message(greeting_message, user, server):
