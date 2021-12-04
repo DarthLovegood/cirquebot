@@ -10,6 +10,7 @@ CONFIG_DEV = 'DEV'
 
 intents = discord.Intents.default()
 intents.members = True
+intents.guild_typing = True
 
 bot = commands.Bot(command_prefix=get_prefix, help_command=None, intents=intents)
 
@@ -24,6 +25,7 @@ def initialize_bot(config):
         return BOT_TOKEN_LITE
 
     # Extensions that should only be loaded for PROD and DEV configurations.
+    bot.load_extension('cogs.abs_game')
     bot.load_extension('cogs.audio_player')
     bot.load_extension('cogs.easter_eggs')
     bot.load_extension('cogs.greetings')

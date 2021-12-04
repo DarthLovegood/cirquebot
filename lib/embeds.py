@@ -29,7 +29,7 @@ def create_authored_embed(user: User, timestamp: datetime, description: str = ''
     return embed
 
 
-def create_basic_embed(description: str, emoji: str = None):
+def create_basic_embed(description: str = '', emoji: str = None):
     if emoji:
         description = FORMAT_EMOJI_TEXT.format(emoji, description)
     return Embed(description=description, color=COLOR_DEFAULT)
@@ -63,7 +63,7 @@ def create_icon_embed(icon_url: Asset, title: str, description: str = ''):
     return embed
 
 
-def create_table_embed(title: str, headers: tuple, rows: list, description: str = None, mark_rows: bool = True):
+def create_table_embed(title: str, headers: tuple, rows: list, description: str = '', mark_rows: bool = True):
     embed = Embed(title=title, description=description, color=COLOR_DEFAULT)
     num_fields = len(headers)
     field_values = ['' for i in range(num_fields)]
