@@ -141,14 +141,14 @@ class Greetings(commands.Cog):
                 log(f'Posting public greeting for {member.name}#{member.discriminator} in "{channel.name}".', indent=1)
                 await channel.send(message)
         else:
-            log(f'Public greetings are currently disabled for "{server.name}"', indent=1)
+            log(f'Public greetings are currently disabled for "{server.name}".', indent=1)
 
         if config[KEY_PRIVATE_MESSAGE]:
             message = Greetings.format_greeting_message(config[KEY_PRIVATE_MESSAGE], member, server)
             log(f'Sending private greeting to {member.name}#{member.discriminator}.', indent=1)
             await member.send(message)
         else:
-            log(f'Private greetings are currently disabled for "{server.name}"', indent=1)
+            log(f'Private greetings are currently disabled for "{server.name}".', indent=1)
 
     async def config(self, ctx):
         config = await self.get_config_for_server(ctx.guild)
