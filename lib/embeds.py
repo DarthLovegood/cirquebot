@@ -63,8 +63,8 @@ def create_icon_embed(icon_url: Asset, title: str, description: str = ''):
     return embed
 
 
-def create_table_embed(title: str, headers: tuple, rows: list, description: str = '', mark_rows: bool = True):
-    embed = Embed(title=title, description=description, color=COLOR_DEFAULT)
+def create_table_embed(title: str, headers: tuple, rows: list, description: str = '', mark_rows: bool = True, timestamp: datetime = None):
+    embed = Embed(title=title, description=description, color=COLOR_DEFAULT, timestamp=timestamp)
     num_fields = len(headers)
     field_values = ['' for i in range(num_fields)]
 
