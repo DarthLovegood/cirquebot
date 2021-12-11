@@ -2,12 +2,14 @@ from asyncio import Lock
 from datetime import datetime, timedelta, timezone
 from discord import File, HTTPException
 from discord.ext import commands
-from lib.embeds import create_authored_embed, create_basic_embed
+from lib.embeds import *
+from cogs.reactions import Reactions
 
 KEY_TIMESTAMP = 'timestamp'  # type: datetime
 KEY_CHANNEL_ID = 'channel_id'  # type: int
 KEY_AUTHOR = 'author'  # type: Member
 KEY_MESSAGE_TEXT = 'message_text'  # type: str
+KEY_MESSAGE_ID  = 'message_id'
 KEY_ATTACHMENTS = 'attachments'  # type: list[Attachment]
 
 SNIPE_WINDOW = timedelta(seconds=30)
@@ -54,7 +56,7 @@ class Sniper(commands.Cog):
 
     @commands.command(aliases=['rsnipe'])
     async def reactsnipe(self, ctx):
-        await Sniper.attempt_snipe(ctx.channel, self.reaction_cache, self.reaction_cache_lock)
+        await Sniper.attempt_snipe(ctx.channel, self.reaction_cache, self.reaction_cache_lock, True)
 
     @staticmethod
     async def add_to_react_cache(reaction, user, reaction_cache, reaction_cache_lock):
@@ -64,7 +66,8 @@ class Sniper(commands.Cog):
                 KEY_TIMESTAMP: timestamp,
                 KEY_CHANNEL_ID: reaction.message.channel.id,
                 KEY_AUTHOR: user,
-                KEY_MESSAGE_TEXT: '> ' + reaction.message.content + "\n\n" + str(reaction.emoji),
+                KEY_MESSAGE_TEXT: str(reaction.emoji),
+                KEY_MESSAGE_ID: reaction.message.jump_url,
                 KEY_ATTACHMENTS: [],
             })
 
@@ -81,9 +84,10 @@ class Sniper(commands.Cog):
             })
 
     @staticmethod
-    async def attempt_snipe(channel, message_cache, message_cache_lock):
+    async def attempt_snipe(channel, message_cache, message_cache_lock, rsnipe=False):
         sniped_user = None
         sniped_messages = []
+        sniped_message_ids = []
         sniped_attachments = []
         sniped_at = datetime.now(timezone.utc)
         snipe_threshold = sniped_at - SNIPE_WINDOW
@@ -101,14 +105,37 @@ class Sniper(commands.Cog):
                 if cache_entry[KEY_CHANNEL_ID] == channel.id:
                     if not sniped_user:
                         sniped_user = cache_entry[KEY_AUTHOR]
-                    if cache_entry[KEY_AUTHOR].id == sniped_user.id:
+                    if cache_entry[KEY_AUTHOR].id == sniped_user.id or rsnipe:
                         sniped_messages.append(cache_entry[KEY_MESSAGE_TEXT])
+                        sniped_message_ids.append(cache_entry[KEY_MESSAGE_ID])
                         sniped_attachments += cache_entry[KEY_ATTACHMENTS]
                         message_cache.pop(cache_index)
                         continue  # Continue without incrementing the index because we removed the current entry.
                 cache_index += 1
 
-        await Sniper.send_snipe_response(channel, sniped_user, sniped_messages, sniped_attachments, sniped_at)
+        if rsnipe:
+            await Sniper.send_rsnipe_response(channel, sniped_user, sniped_messages, sniped_message_ids, sniped_attachments, sniped_at)
+        else:
+            await Sniper.send_snipe_response(channel, sniped_user, sniped_messages, sniped_attachments, sniped_at)
+
+    @staticmethod
+    async def send_rsnipe_response(channel, user, reactions, message_ids, attachments, timestamp):
+        if (not user) or (not message_ids):
+            embed = create_basic_embed(TEXT_SNIPER_FAIL)
+            file = File('assets/swiper.png', 'image.png')
+            embed.set_thumbnail(url='attachment://image.png')
+            await channel.send(embed=embed, file=file)
+            return
+
+        table_rows = []
+
+        for i, reaction in enumerate(reactions):
+            message_link_string = f'**{Reactions.get_message_link_string(message_ids[i])}**'
+            table_rows.append((f'{user.name}#{user.discriminator}', message_link_string, reaction))
+
+        headers = ('User', 'Message', 'Reaction')
+        embed = create_table_embed('Recent Removed Reactions', headers, table_rows, mark_rows=False, timestamp = timestamp)
+        await channel.send(embed=embed)
 
     @staticmethod
     async def send_snipe_response(channel, user, messages, attachments, timestamp):
