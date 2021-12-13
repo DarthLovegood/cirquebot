@@ -63,10 +63,17 @@ def create_icon_embed(icon_url: Asset, title: str, description: str = ''):
     return embed
 
 
-def create_table_embed(title: str, headers: tuple, rows: list, description: str = '', mark_rows: bool = True, timestamp: datetime = Embed.Empty):
-    embed = Embed(title=title, description=description, color=COLOR_DEFAULT, timestamp=timestamp)
+def create_table_embed(title: str, headers: tuple, rows: list,
+                       description: str = '', icon_url: str = '',
+                       mark_rows: bool = True, timestamp: datetime = Embed.Empty):
+    embed = Embed(description=description, color=COLOR_DEFAULT, timestamp=timestamp)
     num_fields = len(headers)
-    field_values = ['' for i in range(num_fields)]
+    field_values = [''] * num_fields
+
+    if icon_url:
+        embed.set_author(name=title, icon_url=icon_url)
+    else:
+        embed.title = title
 
     if description:
         embed.add_field(name="** **", value="** **", inline=False)

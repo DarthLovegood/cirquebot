@@ -6,7 +6,7 @@ from discord import HTTPException
 from discord.ext import commands
 from lib.embeds import *
 from lib.prefixes import get_prefix
-from lib.utils import log, extract_message_id, fetch_message
+from lib.utils import log, extract_message_id, fetch_message, get_message_link_string
 from secrets import SUPER_USERS
 
 CONFIRMATION_TYPE_NONE = 0
@@ -247,14 +247,14 @@ class Reactions(commands.Cog):
             await reaction.remove(user)
 
         embed.title += ' [COMPLETED]'
-        target_message_link_string = Reactions.get_message_link_string(target_message.jump_url)
+        target_message_link_string = get_message_link_string(target_message.jump_url)
         (date_string, time_string) = str(datetime.now())[:-7].split()
         embed.description = f'The following reaction cleanup for message **{target_message_link_string}** ' \
                             f'finished successfully on **{date_string}** at **{time_string}**.\n\n'
         await preview_message.edit(embed=embed)
         await preview_message.clear_reactions()
 
-        message_link_string = Reactions.get_message_link_string(preview_message.jump_url)
+        message_link_string = get_message_link_string(preview_message.jump_url)
         success_text = f'Completed reaction cleanup based on message **{message_link_string}**.'
         await preview_message.channel.send(embed=create_basic_embed(success_text, EMOJI_SUCCESS))
 
@@ -266,7 +266,7 @@ class Reactions(commands.Cog):
         await preview_message.edit(embed=embed)
         await preview_message.clear_reactions()
 
-        message_link_string = Reactions.get_message_link_string(preview_message.jump_url)
+        message_link_string = get_message_link_string(preview_message.jump_url)
         error_text = f'Message **{message_link_string}** is outdated! Please re-run {command}.'
         await preview_message.channel.send(embed=create_basic_embed(error_text, EMOJI_ERROR))
 
@@ -497,16 +497,12 @@ class Reactions(commands.Cog):
             return Reactions.get_role_from_role_str(role_str, server)
 
     @staticmethod
-    def get_message_link_string(message_link):
-        return f'[{extract_message_id(message_link)}]({message_link})'
-
-    @staticmethod
     def get_display_embed(bot, config):
         if not config or KEY_MESSAGE_LINK not in config:
             raise ValueError(f'Invalid config: {config}')
 
         title = f'Reaction/Role Configuration'
-        description = f'** **\n**Options for message {Reactions.get_message_link_string(config[KEY_MESSAGE_LINK])}:**'
+        description = f'** **\n**Options for message {get_message_link_string(config[KEY_MESSAGE_LINK])}:**'
         headers = ('Reaction Emoji', 'Assigned Role')
 
         if config[KEY_IS_REACTIVE]:
@@ -574,7 +570,7 @@ class Reactions(commands.Cog):
             try:
                 channel = ctx.guild.get_channel(message_info[DATA_KEY_CHANNEL_ID])
                 message = await channel.fetch_message(message_info[DATA_KEY_MESSAGE_ID])
-                message_link_string = f'**{Reactions.get_message_link_string(message.jump_url)}**'
+                message_link_string = f'**{get_message_link_string(message.jump_url)}**'
                 available_reactions = ' \u200B '.join(message_info[DATA_KEY_REACTION_ROLES])
                 table_rows.append((channel.mention, message_link_string, available_reactions))
             except (AttributeError, HTTPException):
@@ -615,8 +611,8 @@ class Reactions(commands.Cog):
             await self.save_config_for_message(dst_message, src_config)
             await Reactions.ensure_relevant_reactions(dst_message, src_config)
 
-            src_string = Reactions.get_message_link_string(src_message_link)
-            dst_string = Reactions.get_message_link_string(dst_message_link)
+            src_string = get_message_link_string(src_message_link)
+            dst_string = get_message_link_string(dst_message_link)
             embed_msg = f'Copied reaction/role configuration from message **{src_string}** to message **{dst_string}**.'
             await ctx.send(embed=create_basic_embed(embed_msg, EMOJI_SUCCESS))
 
@@ -624,7 +620,7 @@ class Reactions(commands.Cog):
         bot_member = ctx.guild.get_member(self.bot.user.id)
         message = await Reactions.validate_message(ctx, message_link, bot_member)
         if message:
-            message_link_string = Reactions.get_message_link_string(message_link)
+            message_link_string = get_message_link_string(message_link)
             message_deleted = await self.delete_config_for_message(message.guild.id, message.id)
             if message_deleted:
                 for reaction in message.reactions:
@@ -654,7 +650,7 @@ class Reactions(commands.Cog):
         if message:
             (rows, unused_ids) = await self.get_reactions_for_cleanup(message)
             if rows:
-                link_string = Reactions.get_message_link_string(message.jump_url)
+                link_string = get_message_link_string(message.jump_url)
                 description = f'** **\nReact to this message with \u200B {EMOJI_SUCCESS} \u200B to remove the ' \
                               f'following obsolete and/or mismatched reactions from message **{link_string}**.\n\n' \
                               f'⚠️ \u200B **WARNING:** \u200B This action is irreversible.'
@@ -662,7 +658,7 @@ class Reactions(commands.Cog):
                 embed = create_table_embed(TITLE_CLEANUP, headers, rows, description=description, mark_rows=False)
                 await ctx.send(embed=embed)
             else:
-                message_link_string = Reactions.get_message_link_string(message.jump_url)
+                message_link_string = get_message_link_string(message.jump_url)
                 embed_text = f'Message **{message_link_string}** has no applicable reactions to clean up.'
                 await ctx.send(embed=create_basic_embed(embed_text, EMOJI_WARNING))
 
@@ -795,7 +791,7 @@ class Reactions(commands.Cog):
             if emoji == EMOJI_EDIT_MESSAGE_OPTIONS:
                 self.staging_config = self.config.copy()
                 message_link = self.display_message.jump_url
-                embed_text = f'**Editing options in message {Reactions.get_message_link_string(message_link)}.**\n' \
+                embed_text = f'**Editing options in message {get_message_link_string(message_link)}.**\n' \
                              f'Please react to the above message with the emoji corresponding to the option(s) ' \
                              f'you\'d like to toggle - your changes will be reflected above immediately, ' \
                              f'but will not take effect until you save them. When you\'re finished, react with ' \
