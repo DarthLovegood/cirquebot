@@ -24,6 +24,10 @@ def extract_message_id(message_link):
     return int(message_link.split('/')[-1])
 
 
+def get_message_link_string(message_link):
+    return f'[{extract_message_id(message_link)}]({message_link})'
+
+
 def get_channel(ctx, channel_str):
     return ctx.guild.get_channel(int(channel_str[2:-1]))
 
