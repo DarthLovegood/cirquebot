@@ -2,23 +2,20 @@ from asyncio import Lock
 from datetime import datetime, timedelta, timezone
 from discord import HTTPException
 from discord.ext import commands
-from lib.embeds import create_authored_embed, create_basic_embed, create_table_embed
+from lib.embeds import create_authored_embed, create_basic_embed
 from lib.utils import get_message_link_string
 
 KEY_TIMESTAMP = 'timestamp'  # type: datetime
 KEY_CHANNEL_ID = 'channel_id'  # type: int
-KEY_AUTHOR = 'author'  # type: Member
-KEY_MESSAGE_TEXT = 'message_text'  # type: str
-KEY_MESSAGE_URL = 'message_url'  # type: str
-KEY_ATTACHMENTS = 'attachments'  # type: list[Attachment]
+KEY_USER = 'user'  # type: Member
+KEY_CONTENT = 'content'  # type: str
+KEY_EXTRAS = 'extras'  # type: str or list[Attachment]
 
 SNIPE_WINDOW = timedelta(seconds=30)
 
 TEXT_SNIPER_FAIL = '**"SNIPER, NO SNIPING!"**\n*"Oh, mannnn...*"'
 TEXT_SENT_FILE = '*Sent a file!*'
 TEXT_SENT_FILES = '*Sent some files!*'
-TEXT_REACTIONS_TITLE = 'Recently Removed Reactions'
-TEXT_REACTIONS_HEADERS = ('User', 'Message', 'Reaction')
 
 URL_SNIPER_ICON = 'https://cdn.discordapp.com/attachments/919924341343399966/919934086183813120/sniper.png'
 URL_SWIPER_ICON = 'https://cdn.discordapp.com/attachments/919924341343399966/919933002270789653/swiper.png'
@@ -28,75 +25,74 @@ class Sniper(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.reaction_cache = []
         self.deleted_message_cache = []
-        self.edited_message_cache = []
         self.deleted_message_cache_lock = Lock()
+        self.edited_message_cache = []
         self.edited_message_cache_lock = Lock()
-        self.reaction_cache_lock = Lock()
-
-    @commands.Cog.listener()
-    async def on_reaction_remove(self, reaction, user):
-        if not user.bot:
-            await Sniper.add_to_react_cache(reaction, user, self.reaction_cache, self.reaction_cache_lock)
+        self.removed_reaction_cache = []
+        self.removed_reaction_cache_lock = Lock()
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
         if not message.author.bot:
-            await Sniper.add_to_cache(message, self.deleted_message_cache, self.deleted_message_cache_lock)
+            await Sniper.add_to_cache(self.deleted_message_cache, self.deleted_message_cache_lock,
+                                      channel=message.channel,
+                                      user=message.author,
+                                      content=message.content,
+                                      extras=message.attachments)
 
     @commands.Cog.listener()
     async def on_message_edit(self, original_message, edited_message):
         changed_content = original_message.content != edited_message.content
         removed_attachments = [a for a in original_message.attachments if a not in edited_message.attachments]
         if (not original_message.author.bot) and (changed_content or removed_attachments):
-            await Sniper.add_to_cache(
-                original_message, self.edited_message_cache, self.edited_message_cache_lock, removed_attachments)
+            await Sniper.add_to_cache(self.edited_message_cache, self.edited_message_cache_lock,
+                                      channel=original_message.channel,
+                                      user=original_message.author,
+                                      content=original_message.content,  # TODO: Display the text diff more clearly.
+                                      extras=removed_attachments)
+
+    @commands.Cog.listener()
+    async def on_reaction_remove(self, reaction, user):
+        if not user.bot:
+            await Sniper.add_to_cache(self.removed_reaction_cache, self.removed_reaction_cache_lock,
+                                      channel=reaction.message.channel,
+                                      user=user,
+                                      content=reaction.emoji,
+                                      extras=reaction.message.jump_url)
 
     @commands.command()
     async def snipe(self, ctx):
-        await Sniper.attempt_snipe(ctx.channel, self.deleted_message_cache, self.deleted_message_cache_lock)
+        await Sniper.attempt_snipe(
+            ctx.channel, self.deleted_message_cache, self.deleted_message_cache_lock, Sniper.send_snipe_response)
 
     @commands.command(aliases=['esnipe'])
     async def editsnipe(self, ctx):
-        await Sniper.attempt_snipe(ctx.channel, self.edited_message_cache, self.edited_message_cache_lock)
+        await Sniper.attempt_snipe(
+            ctx.channel, self.edited_message_cache, self.edited_message_cache_lock, Sniper.send_snipe_response)
 
     @commands.command(aliases=['rsnipe'])
     async def reactsnipe(self, ctx):
-        await Sniper.attempt_snipe(ctx.channel, self.reaction_cache, self.reaction_cache_lock, is_rsnipe=True)
+        await Sniper.attempt_snipe(
+            ctx.channel, self.removed_reaction_cache, self.removed_reaction_cache_lock, Sniper.send_rsnipe_response)
 
     @staticmethod
-    async def add_to_react_cache(reaction, user, reaction_cache, reaction_cache_lock):
+    async def add_to_cache(cache, cache_lock, channel=None, user=None, content=None, extras=None):
         timestamp = datetime.now(timezone.utc)
-        async with reaction_cache_lock:
-            reaction_cache.append({
+        async with cache_lock:
+            cache.append({
                 KEY_TIMESTAMP: timestamp,
-                KEY_CHANNEL_ID: reaction.message.channel.id,
-                KEY_AUTHOR: user,
-                KEY_MESSAGE_TEXT: reaction.emoji,
-                KEY_MESSAGE_URL: reaction.message.jump_url,
-                KEY_ATTACHMENTS: [],
+                KEY_CHANNEL_ID: channel.id,
+                KEY_USER: user,
+                KEY_CONTENT: content,
+                KEY_EXTRAS: extras
             })
 
     @staticmethod
-    async def add_to_cache(message, message_cache, message_cache_lock, removed_attachments=[]):
-        timestamp = datetime.now(timezone.utc)
-        async with message_cache_lock:
-            message_cache.append({
-                KEY_TIMESTAMP: timestamp,
-                KEY_CHANNEL_ID: message.channel.id,
-                KEY_AUTHOR: message.author,
-                KEY_MESSAGE_TEXT: message.content,
-                KEY_MESSAGE_URL: message.jump_url,
-                KEY_ATTACHMENTS: removed_attachments if removed_attachments else message.attachments
-            })
-
-    @staticmethod
-    async def attempt_snipe(channel, message_cache, message_cache_lock, is_rsnipe=False):
+    async def attempt_snipe(channel, message_cache, message_cache_lock, success_callback):
         sniped_user = None
-        sniped_messages = []
-        sniped_message_urls = []
-        sniped_attachments = []
+        sniped_content = []
+        sniped_extras = []
         sniped_at = datetime.now(timezone.utc)
         snipe_threshold = sniped_at - SNIPE_WINDOW
 
@@ -105,28 +101,31 @@ class Sniper(commands.Cog):
             while message_cache and (message_cache[0][KEY_TIMESTAMP] < snipe_threshold):
                 message_cache.pop(0)
 
-            # Identify the first user who deleted their messages in the current channel within the snipe window, and
-            # capture ALL deleted messages within the snipe window by that same user in the current channel.
+            # Identify the first user who deleted their messages/reactions in the current channel within the
+            # snipe window, and capture ALL deleted messages/reactions within the snipe window by that same user
+            # in the current channel.
             cache_index = 0
             while cache_index < len(message_cache):
                 cache_entry = message_cache[cache_index]
                 if cache_entry[KEY_CHANNEL_ID] == channel.id:
+                    # Lock onto a target user if one hasn't already been chosen.
                     if not sniped_user:
-                        sniped_user = cache_entry[KEY_AUTHOR]
-                    if (is_rsnipe and len(sniped_messages) < 3) or (not is_rsnipe and cache_entry[KEY_AUTHOR].id == sniped_user.id):
-                        sniped_messages.append(cache_entry[KEY_MESSAGE_TEXT])
-                        sniped_message_urls.append(cache_entry[KEY_MESSAGE_URL])
-                        sniped_attachments += cache_entry[KEY_ATTACHMENTS]
+                        sniped_user = cache_entry[KEY_USER]
+                    # Snipe the message/reaction if it came from the target user.
+                    if cache_entry[KEY_USER].id == sniped_user.id:
+                        sniped_content.append(cache_entry[KEY_CONTENT])
+                        if isinstance(cache_entry[KEY_EXTRAS], list):
+                            sniped_extras += cache_entry[KEY_EXTRAS]
+                        else:
+                            sniped_extras.append(cache_entry[KEY_EXTRAS])
                         message_cache.pop(cache_index)
                         continue  # Continue without incrementing the index because we removed the current entry.
                 cache_index += 1
 
-        if (not sniped_user) or (not sniped_messages):
-            await Sniper.send_failure_response(channel)
-        elif is_rsnipe:
-            await Sniper.send_rsnipe_response(channel, sniped_user, sniped_messages, sniped_message_urls, sniped_at)
+        if sniped_user and sniped_content:
+            await success_callback(channel, sniped_user, sniped_content, sniped_extras, sniped_at)
         else:
-            await Sniper.send_snipe_response(channel, sniped_user, sniped_messages, sniped_attachments, sniped_at)
+            await Sniper.send_failure_response(channel)
 
     @staticmethod
     async def send_failure_response(channel):
@@ -135,16 +134,16 @@ class Sniper(commands.Cog):
         await channel.send(embed=embed)
 
     @staticmethod
-    async def send_rsnipe_response(channel, user, reactions, message_urls, timestamp):
-        for i, reaction in enumerate(reactions):
+    async def send_rsnipe_response(channel, user, emojis, message_urls, timestamp):
+        # TODO: Handle long emoji lists better. Currently, this will send a separate message for every emoji.
+        for i, emoji in enumerate(emojis):
             message_link_string = f'**{get_message_link_string(message_urls[i])}**'
-            react_name = reaction if isinstance(reaction, str) else reaction.name
             embed = create_basic_embed(f'Message: {message_link_string}', timestamp=timestamp)
 
-            if isinstance(reaction, str):
-                embed.set_author(name=f'{reaction} {user.name}#{user.discriminator}')
+            if isinstance(emoji, str):
+                embed.set_author(name=f'{emoji} {user.name}#{user.discriminator}')
             else:
-                embed.set_author(name=f'{user.name}#{user.discriminator} with :{react_name}:', icon_url=reaction.url)
+                embed.set_author(name=f'{user.name}#{user.discriminator} with :{emoji.name}:', icon_url=emoji.url)
 
             await channel.send(embed=embed)
 
