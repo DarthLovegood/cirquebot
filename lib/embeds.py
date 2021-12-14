@@ -29,10 +29,10 @@ def create_authored_embed(user: User, timestamp: datetime, description: str = ''
     return embed
 
 
-def create_basic_embed(description: str = '', emoji: str = None):
+def create_basic_embed(description: str = '', emoji: str = None, timestamp: datetime = Embed.Empty):
     if emoji:
         description = FORMAT_EMOJI_TEXT.format(emoji, description)
-    return Embed(description=description, color=COLOR_DEFAULT)
+    return Embed(description=description, color=COLOR_DEFAULT, timestamp=timestamp)
 
 
 def create_event_embed(event: dict):

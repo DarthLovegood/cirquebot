@@ -73,7 +73,7 @@ class Sniper(commands.Cog):
                 KEY_TIMESTAMP: timestamp,
                 KEY_CHANNEL_ID: reaction.message.channel.id,
                 KEY_AUTHOR: user,
-                KEY_MESSAGE_TEXT: str(reaction.emoji),
+                KEY_MESSAGE_TEXT: reaction.emoji,
                 KEY_MESSAGE_URL: reaction.message.jump_url,
                 KEY_ATTACHMENTS: [],
             })
@@ -113,7 +113,7 @@ class Sniper(commands.Cog):
                 if cache_entry[KEY_CHANNEL_ID] == channel.id:
                     if not sniped_user:
                         sniped_user = cache_entry[KEY_AUTHOR]
-                    if cache_entry[KEY_AUTHOR].id == sniped_user.id or is_rsnipe:
+                    if (is_rsnipe and len(sniped_messages) < 3) or (not is_rsnipe and cache_entry[KEY_AUTHOR].id == sniped_user.id):
                         sniped_messages.append(cache_entry[KEY_MESSAGE_TEXT])
                         sniped_message_urls.append(cache_entry[KEY_MESSAGE_URL])
                         sniped_attachments += cache_entry[KEY_ATTACHMENTS]
@@ -136,15 +136,17 @@ class Sniper(commands.Cog):
 
     @staticmethod
     async def send_rsnipe_response(channel, user, reactions, message_urls, timestamp):
-        table_rows = []
-
         for i, reaction in enumerate(reactions):
             message_link_string = f'**{get_message_link_string(message_urls[i])}**'
-            table_rows.append((user.mention, message_link_string, reaction))
+            react_name = reaction if isinstance(reaction, str) else reaction.name
+            embed = create_basic_embed(f'Message: {message_link_string}', timestamp=timestamp)
 
-        embed = create_table_embed(TEXT_REACTIONS_TITLE, TEXT_REACTIONS_HEADERS, table_rows,
-                                   icon_url=URL_SNIPER_ICON, mark_rows=False, timestamp=timestamp)
-        await channel.send(embed=embed)
+            if isinstance(reaction, str):
+                embed.set_author(name=f'{reaction} {user.name}#{user.discriminator}')
+            else:
+                embed.set_author(name=f'{user.name}#{user.discriminator} with :{react_name}:', icon_url=reaction.url)
+
+            await channel.send(embed=embed)
 
     @staticmethod
     async def send_snipe_response(channel, user, messages, attachments, timestamp):
