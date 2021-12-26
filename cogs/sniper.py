@@ -1,6 +1,6 @@
 from asyncio import Lock
 from datetime import datetime, timedelta, timezone
-from discord import HTTPException
+from discord import HTTPException, Message
 from discord.ext import commands
 from lib.embeds import create_authored_embed, create_basic_embed
 from lib.utils import get_message_link_string
@@ -12,10 +12,14 @@ KEY_CONTENT = 'content'  # type: str
 KEY_EXTRAS = 'extras'  # type: str or list[Attachment]
 
 SNIPE_WINDOW = timedelta(seconds=30)
+SLOWPOKE_WINDOW = timedelta(seconds=5)
 
 TEXT_SNIPER_FAIL = '**"SNIPER, NO SNIPING!"**\n*"Oh, mannnn...*"'
 TEXT_SENT_FILE = '*Sent a file!*'
 TEXT_SENT_FILES = '*Sent some files!*'
+
+EMOJI_SLOWPOKE = '<:slowpoke:854520068372168714>'
+EMOJI_THUMBS_DOWN = '👎' # Fallback option for when the slowpoke emoji isn't available
 
 URL_SNIPER_ICON = 'https://cdn.discordapp.com/attachments/919924341343399966/919934086183813120/sniper.png'
 URL_SWIPER_ICON = 'https://cdn.discordapp.com/attachments/919924341343399966/919933002270789653/swiper.png'
@@ -31,6 +35,8 @@ class Sniper(commands.Cog):
         self.edited_message_cache_lock = Lock()
         self.removed_reaction_cache = []
         self.removed_reaction_cache_lock = Lock()
+        self.last_snipe_cache = {}
+        self.last_snipe_cache_lock = Lock()
 
     @commands.Cog.listener()
     async def on_message_delete(self, message):
@@ -62,19 +68,19 @@ class Sniper(commands.Cog):
                                       extras=reaction.message.jump_url)
 
     @commands.command()
-    async def snipe(self, ctx):
-        await Sniper.attempt_snipe(
-            ctx.channel, self.deleted_message_cache, self.deleted_message_cache_lock, Sniper.send_snipe_response)
+    async def snipe(self, ctx: commands.Context=None, msg: Message=None):
+        await self.attempt_snipe(
+            msg or ctx.message, self.deleted_message_cache, self.deleted_message_cache_lock, Sniper.send_snipe_response)
 
     @commands.command(aliases=['esnipe'])
-    async def editsnipe(self, ctx):
-        await Sniper.attempt_snipe(
-            ctx.channel, self.edited_message_cache, self.edited_message_cache_lock, Sniper.send_snipe_response)
+    async def editsnipe(self, ctx: commands.Context=None, msg: Message=None):
+        await self.attempt_snipe(
+            msg or ctx.message, self.edited_message_cache, self.edited_message_cache_lock, Sniper.send_snipe_response)
 
     @commands.command(aliases=['rsnipe'])
-    async def reactsnipe(self, ctx):
-        await Sniper.attempt_snipe(
-            ctx.channel, self.removed_reaction_cache, self.removed_reaction_cache_lock, Sniper.send_rsnipe_response)
+    async def reactsnipe(self, ctx: commands.Context=None, msg: Message=None):
+        await self.attempt_snipe(
+            msg or ctx.message, self.removed_reaction_cache, self.removed_reaction_cache_lock, Sniper.send_rsnipe_response)
 
     @staticmethod
     async def add_to_cache(cache, cache_lock, channel=None, user=None, content=None, extras=None):
@@ -88,8 +94,8 @@ class Sniper(commands.Cog):
                 KEY_EXTRAS: extras
             })
 
-    @staticmethod
-    async def attempt_snipe(channel, message_cache, message_cache_lock, success_callback):
+    async def attempt_snipe(self, message, message_cache, message_cache_lock, success_callback):
+        channel = message.channel
         sniped_user = None
         sniped_content = []
         sniped_extras = []
@@ -123,15 +129,24 @@ class Sniper(commands.Cog):
                 cache_index += 1
 
         if sniped_user and sniped_content:
+            async with self.last_snipe_cache_lock:
+                self.last_snipe_cache[channel.id] = datetime.now(timezone.utc)
             await success_callback(channel, sniped_user, sniped_content, sniped_extras, sniped_at)
         else:
-            await Sniper.send_failure_response(channel)
+            await Sniper.send_failure_response(message, self.last_snipe_cache.get(channel.id))
 
     @staticmethod
-    async def send_failure_response(channel):
-        embed = create_basic_embed(TEXT_SNIPER_FAIL)
-        embed.set_thumbnail(url=URL_SWIPER_ICON)
-        await channel.send(embed=embed)
+    async def send_failure_response(message: Message, last_snipe_timestamp: datetime = None):
+        slowpoke_threshold = datetime.now(timezone.utc) - SLOWPOKE_WINDOW
+        if last_snipe_timestamp and (last_snipe_timestamp > slowpoke_threshold):
+            try:
+                await message.add_reaction(EMOJI_SLOWPOKE)
+            except HTTPException:
+                await message.add_reaction(EMOJI_THUMBS_DOWN)
+        else:
+            embed = create_basic_embed(TEXT_SNIPER_FAIL)
+            embed.set_thumbnail(url=URL_SWIPER_ICON)
+            await message.channel.send(embed=embed)
 
     @staticmethod
     async def send_rsnipe_response(channel, user, emojis, message_urls, timestamp):
