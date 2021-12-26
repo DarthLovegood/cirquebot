@@ -51,16 +51,16 @@ class EasterEggs(commands.Cog):
         elif not message.guild:
             await EasterEggs.respond_to_dm(message)
         elif REGEX_ESNIPE.match(message.content):
-            await self.bot.get_cog('Sniper').editsnipe(message)
+            await self.bot.get_cog('Sniper').editsnipe(msg=message)
         elif REGEX_RSNIPE.match(message.content):
-            await self.bot.get_cog('Sniper').reactsnipe(message)
+            await self.bot.get_cog('Sniper').reactsnipe(msg=message)
         elif REGEX_HELP.match(message.content):
             if get_prefix(self.bot, message) != DEFAULT_PREFIX:
                 await Help.show_help(self.bot, message)
         elif REGEX_QWEPHESS.match(message.content):
             await EasterEggs.fix_qwephess(message)
         elif REGEX_SNIPE.match(message.content):
-            await self.bot.get_cog('Sniper').snipe(message)
+            await self.bot.get_cog('Sniper').snipe(msg=message)
         elif REGEX_SPANK_EMOJI.match(message.content):
             await EasterEggs.handle_spank_command(message, bot=self.bot)
 
