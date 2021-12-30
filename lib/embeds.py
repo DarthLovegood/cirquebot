@@ -15,6 +15,10 @@ FORMAT_EMOJI_TEXT = '{0} \u200B \u200B {1}'  # args: emoji, text
 FORMAT_HELP_TITLE = 'CirqueBot Help: \u200B \u200B `{0}`'  # args: command
 FORMAT_COMMAND_TITLE = '\n** **\n{0} \u200B \u200B {1}'  # args: emoji, title
 
+TEXT_ERROR_LABEL = '**Error:** \u200B '
+TEXT_INDENT_SPACING = '\u200B \u200B \u200B \u200B'
+TEXT_MISSING_PERMISSION = 'I don\'t have permission to do that here!'
+
 KEY_TITLE = 'title'
 KEY_DESCRIPTION = 'description'
 KEY_COMMAND = 'command'
@@ -33,6 +37,13 @@ def create_basic_embed(description: str = '', emoji: str = None, timestamp: date
     if emoji:
         description = FORMAT_EMOJI_TEXT.format(emoji, description)
     return Embed(description=description, color=COLOR_DEFAULT, timestamp=timestamp)
+
+
+def create_error_embed(error_text: str, error_hint: str = ''):
+    description = TEXT_ERROR_LABEL + error_text
+    if error_hint:
+        description += '\n' + (TEXT_INDENT_SPACING * 3) + error_hint
+    return create_basic_embed(description=description, emoji=EMOJI_ERROR)
 
 
 def create_event_embed(event: dict):

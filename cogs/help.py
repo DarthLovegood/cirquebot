@@ -1,6 +1,9 @@
+from cogs.permissions import Permissions
 from copy import deepcopy
-from discord.ext import commands
+from discord import Message
+from discord.ext.commands import Bot, Cog, Context, command
 from lib.embeds import *
+from lib.permission import Permission
 from lib.prefixes import get_prefix
 
 BASE_HELP_DICT = {
@@ -12,26 +15,28 @@ BASE_HELP_DICT = {
 }
 
 
-class Help(commands.Cog):
+class Help(Cog):
 
-    def __init__(self, bot):
+    def __init__(self, bot: Bot):
         self.bot = bot
 
-    @commands.command()
-    async def help(self, ctx):
-        if ctx.guild:
-            await Help.show_help(self.bot, ctx.message)
+    @command()
+    async def help(self, ctx: Context):
+        await Help.show_help(self.bot, ctx.message)
 
     @staticmethod
-    async def show_help(bot, message):
+    async def show_help(bot: Bot, message: Message):
+        if not await Permissions.check(bot, Permission.VIEW_HELP, message.guild, message.channel):
+            await message.channel.send(embed=create_error_embed(TEXT_MISSING_PERMISSION))
+            return
+
         help_cogs = []
         for cog_name, cog_object in bot.cogs.items():
             if hasattr(cog_object, 'help') and not callable(getattr(cog_object, 'help')):
                 help_cogs.append((cog_name, cog_object))
         help_cogs.sort()
-        help_dict = Help.build_help_dict(help_cogs)
-        prefix = get_prefix(bot, message)
-        await message.channel.send(embed=create_help_embed(help_dict, prefix))
+
+        await message.channel.send(embed=create_help_embed(Help.build_help_dict(help_cogs), get_prefix(bot, message)))
 
     @staticmethod
     def build_help_dict(help_cogs: list):
@@ -46,5 +51,5 @@ class Help(commands.Cog):
         return help_dict
 
 
-def setup(bot):
+def setup(bot: Bot):
     bot.add_cog(Help(bot))
