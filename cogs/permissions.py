@@ -19,6 +19,7 @@ ERROR_INVALID_COMMAND_HINT_FORMAT = 'To see a list of available commands, type: 
 ERROR_INVALID_PERMISSION_TEXT_FORMAT = '`{0}` \u200B is not a valid permission. Please try again!'  # arg: permission
 ERROR_INVALID_PERMISSION_HINT_FORMAT = 'To see all available permissions, type: \u200B `{0}pm overview`'  # arg: prefix
 ERROR_UNSPECIFIED_PERMISSION_FORMAT = 'Please specify a permission for the \u200B `{0}` \u200B command.'  # arg: command
+ERROR_INVALID_CHANNEL_FORMAT = 'I don\'t have permission to send messages in {0}!'  # arg: channel_mention
 ERROR_UNSPECIFIED_CHANNEL = 'Please specify at least one channel for the \u200B `toggle` \u200B command.'
 
 OVERVIEW_TITLE_FORMAT = 'Permissions Overview for "{0}"'  # arg: server_name
@@ -251,8 +252,9 @@ class Permissions(Cog):
     async def announce_permission_updates(ctx: Context, update_text: str, emoji: str):
         if update_text == UPDATE_WARNING_NO_CHANGES:
             emoji = EMOJI_WARNING
-        log(f'INFO: A permission has been updated in "{ctx.guild.name}":')
-        log(update_text.replace(f'\n{TEXT_INDENT_SPACING * 3}', ' '), indent=1)
+        else:
+            log(f'INFO: A permission has been updated in "{ctx.guild.name}":')
+            log(update_text.replace(f'\n{TEXT_INDENT_SPACING * 3}', ' '), indent=1)
         await ctx.send(embed=create_basic_embed(update_text, emoji))
 
     async def show_overview(self, ctx: Context):
@@ -347,7 +349,14 @@ class Permissions(Cog):
 
     async def toggle_permission_for_channel(self, ctx: Context, permission: Permission, toggled_channels: list):
         old_permission_config = await self.get_permission_config_for_server(ctx.guild.id, permission)
-        toggled_channel_ids = {channel.id for channel in toggled_channels}
+        toggled_channel_ids = set()
+
+        for channel in toggled_channels:
+            if self.is_available_channel(ctx.guild, channel.id):
+                toggled_channel_ids.add(channel.id)
+            else:
+                await ctx.send(embed=create_error_embed(ERROR_INVALID_CHANNEL_FORMAT.format(channel.mention)))
+                return
 
         # Use the symmetric difference set operator (^) to toggle the presence of the given channel(s) in the whitelist.
         new_whitelisted_channel_ids = old_permission_config.whitelisted_channel_ids ^ toggled_channel_ids
@@ -372,6 +381,11 @@ class Permissions(Cog):
 
         await Permissions.announce_permission_updates(ctx, update_text, update_emoji)
 
+    def is_available_channel(self, server: Guild, channel_id: int) -> bool:
+        bot_member = server.get_member(self.bot.user.id)
+        channel = server.get_channel(channel_id)
+        return channel and channel.permissions_for(bot_member).send_messages
+
     async def get_permission_config_for_server(self, server_id: int, permission: Permission) -> PermissionConfig:
         async with self.cache_lock:
             if server_id not in self.cache:
@@ -383,8 +397,15 @@ class Permissions(Cog):
                     async with connection.execute(query, (server_id, permission.id)) as cursor:
                         row = await cursor.fetchone()
                         if row:
+                            server = self.bot.get_guild(server_id)
+                            whitelisted_channel_ids = set()
+                            for channel_id in loads(row[3]):
+                                if self.is_available_channel(server, channel_id):
+                                    whitelisted_channel_ids.add(channel_id)
+                                else:
+                                    log(f'WARNING: Channel {channel_id} in "{server.name}" is no longer available.')
                             permission_config = PermissionConfig.get_config(
-                                is_enabled=row[2], whitelisted_channel_ids=frozenset(loads(row[3])))
+                                is_enabled=row[2], whitelisted_channel_ids=frozenset(whitelisted_channel_ids))
                         else:
                             permission_config = PermissionConfig.get_default_config_for_permission(permission)
                 self.cache[server_id][permission.id] = permission_config
@@ -407,17 +428,13 @@ class Permissions(Cog):
             async with connect(self.db) as connection:
                 is_enabled = permission_config.is_enabled
                 whitelisted_channel_ids = dumps(sorted(permission_config.whitelisted_channel_ids))
-                query = 'SELECT * FROM permissions WHERE server_id=? AND permission_id=?'
-                async with connection.execute(query, (server_id, permission.id)) as cursor:
-                    if await cursor.fetchone():
-                        await cursor.execute('UPDATE permissions '
-                                             'SET is_enabled=?,'
-                                             '    whitelisted_channel_ids=? '
-                                             'WHERE server_id=? AND permission_id=?',
-                                             (is_enabled, whitelisted_channel_ids, server_id, permission.id))
-                    else:
-                        await cursor.execute('INSERT INTO permissions VALUES (?, ?, ?, ?)',
-                                             (server_id, permission.id, is_enabled, whitelisted_channel_ids))
+                await connection.execute('INSERT INTO permissions'
+                                         '    (server_id, permission_id, is_enabled, whitelisted_channel_ids)'
+                                         'VALUES (?, ?, ?, ?) '
+                                         'ON CONFLICT (server_id, permission_id) '
+                                         'DO UPDATE SET is_enabled=?, whitelisted_channel_ids=?',
+                                         (server_id, permission.id, is_enabled, whitelisted_channel_ids,
+                                          is_enabled, whitelisted_channel_ids))
                 await connection.commit()
 
     async def reset_permission_config_for_server(self, server_id: int, permission: Permission):
@@ -428,10 +445,8 @@ class Permissions(Cog):
             self.cache[server_id][permission.id] = PermissionConfig.get_default_config_for_permission(permission)
 
             async with connect(self.db) as connection:
-                from_statement = 'FROM permissions WHERE server_id=? AND permission_id=?'
-                async with connection.execute(f'SELECT * {from_statement}', (server_id, permission.id)) as cursor:
-                    if await cursor.fetchone():
-                        await cursor.execute(f'DELETE {from_statement}', (server_id, permission.id))
+                await connection.execute(
+                    'DELETE FROM permissions WHERE server_id=? AND permission_id=?', (server_id, permission.id))
                 await connection.commit()
 
 
